@@ -56,11 +56,11 @@ button {
 </head>
 
 <body>
-<h1>� EV Unplug Time</h1>
+<h1>🔌 EV Unplug Time</h1>
 
 <div class="card">
   <label>Battery capacity (kWh)
-    <input id="capacity" type="number" value="54">
+    <input id="capacity" type="number" step="0.1" value="46.3">
   </label>
 
   <label>Current charge (%)
@@ -72,84 +72,103 @@ button {
   </label>
 
   <label>Charging power (kW)
-    <input id="power" type="number" value="11">
+    <input id="power" type="number" step="0.1" value="11">
   </label>
 
   <label>Start time
     <input id="startTime" type="datetime-local">
   </label>
 
-  <button onclick="calculate()">Calculate & Set Alarm</button>
+  <button id="calcBtn">Calculate & Set Alarm</button>
 
   <div class="result" id="result"></div>
 </div>
 
 <script>
-/* ---------- SERVICE WORKER ---------- */
+/* ---------------- SERVICE WORKER ---------------- */
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js");
 }
 
-/* ---------- NOTIFICATION PERMISSION ---------- */
+/* ---------------- ELEMENT REFERENCES ---------------- */
+const capacityInput  = document.getElementById("capacity");
+const startPctInput  = document.getElementById("startPct");
+const targetPctInput = document.getElementById("targetPct");
+const powerInput     = document.getElementById("power");
+const startTimeInput = document.getElementById("startTime");
+const resultDiv      = document.getElementById("result");
+const calcBtn        = document.getElementById("calcBtn");
+
+/* ---------------- NOTIFICATIONS ---------------- */
 async function ensureNotificationPermission() {
+  if (!("Notification" in window)) return false;
   if (Notification.permission === "granted") return true;
-  const perm = await Notification.requestPermission();
-  return perm === "granted";
+  const p = await Notification.requestPermission();
+  return p === "granted";
 }
 
-/* ---------- CALCULATION + ALARM ---------- */
-let alarmTimeout;
+let alarmTimeout = null;
 
+/* ---------------- CALCULATION ---------------- */
 async function calculate() {
-  const cap = +capacity.value;
-  const start = +startPct.value;
-  const target = +targetPct.value;
-  const power = +power.value;
+  const capacity = parseFloat(capacityInput.value);
+  const startPct = parseFloat(startPctInput.value);
+  const targetPct = parseFloat(targetPctInput.value);
+  const power = parseFloat(powerInput.value);
 
-  if (target <= start) {
-    result.textContent = "Target must be higher than current charge.";
+  if (
+    isNaN(capacity) || isNaN(startPct) ||
+    isNaN(targetPct) || isNaN(power)
+  ) {
+    resultDiv.textContent = "Please fill in all fields.";
     return;
   }
 
-  const energy = cap * (target - start) / 100;
-  const hours = energy / power;
+  if (targetPct <= startPct) {
+    resultDiv.textContent = "Target percentage must be higher than current charge.";
+    return;
+  }
 
-  const startDate = startTime.value
-    ? new Date(startTime.value)
+  const energyNeeded = capacity * (targetPct - startPct) / 100;
+  const hoursNeeded = energyNeeded / power;
+
+  const startTime = startTimeInput.value
+    ? new Date(startTimeInput.value)
     : new Date();
 
-  const endDate = new Date(startDate.getTime() + hours * 3600000);
+  const endTime = new Date(startTime.getTime() + hoursNeeded * 3600000);
 
-  result.innerHTML = `
-    <strong>Energy:</strong> ${energy.toFixed(2)} kWh<br>
-    <strong>Time:</strong> ${hours.toFixed(2)} h<br>
-    <strong>Unplug at:</strong><br>${endDate.toLocaleString()}
+  resultDiv.innerHTML = `
+    <strong>Energy needed:</strong> ${energyNeeded.toFixed(2)} kWh<br>
+    <strong>Charging time:</strong> ${hoursNeeded.toFixed(2)} h<br>
+    <strong>Unplug at:</strong><br>${endTime.toLocaleString()}
   `;
 
-  if (!(await ensureNotificationPermission())) {
-    alert("Notification permission denied.");
-    return;
-  }
+  if (!(await ensureNotificationPermission())) return;
 
   if (alarmTimeout) clearTimeout(alarmTimeout);
 
-  const delay = endDate - Date.now();
+  const delay = endTime.getTime() - Date.now();
   if (delay > 0) {
     alarmTimeout = setTimeout(() => {
       navigator.serviceWorker.ready.then(reg =>
         reg.showNotification("EV Charging Complete", {
           body: "Estimated target charge reached. You can unplug now.",
-          vibrate: [200, 100, 200],
+          vibrate: [200, 100, 200]
         })
       );
     }, delay);
   }
 }
 
-/* ---------- DEFAULT START TIME = NOW ---------- */
+/* ---------------- EVENTS ---------------- */
+calcBtn.addEventListener("click", calculate);
+
+/* ---------------- DEFAULT START TIME ---------------- */
 const now = new Date();
 now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-startTime.value = now.toISOString().slice(0,16);
+startTimeInput.value = now.toISOString().slice(0,16);
 </script>
+
 </body>
 </html>
