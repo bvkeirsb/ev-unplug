@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EV Unplug Time</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f172a">
+
+<style>
+body {
+  font-family: system-ui, sans-serif;
+  background: #0f172a;
+  color: #e5e7eb;
+  margin: 0;
+  padding: 1rem;
+}
+h1 { text-align: center; }
+.card {
+  max-width: 420px;
+  margin: auto;
+  background: #020617;
+  border-radius: 12px;
+  padding: 1rem;
+}
+label {
+  display: block;
+  margin-top: 0.75rem;
+}
+input {
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.25rem;
+  border-radius: 6px;
+  border: none;
+}
+button {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  font-size: 1rem;
+  border-radius: 8px;
+  border: none;
+  background: #22c55e;
+  color: #022c22;
+  font-weight: 600;
+}
+.result {
+  margin-top: 1rem;
+  background: #020617;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+</style>
+</head>
+
+<body>
+<h1>� EV Unplug Time</h1>
+
+<div class="card">
+  <label>Battery capacity (kWh)
+    <input id="capacity" type="number" value="54">
+  </label>
+
+  <label>Current charge (%)
+    <input id="startPct" type="number" value="30">
+  </label>
+
+  <label>Target charge (%)
+    <input id="targetPct" type="number" value="85">
+  </label>
+
+  <label>Charging power (kW)
+    <input id="power" type="number" value="11">
+  </label>
+
+  <label>Start time
+    <input id="startTime" type="datetime-local">
+  </label>
+
+  <button onclick="calculate()">Calculate & Set Alarm</button>
+
+  <div class="result" id="result"></div>
+</div>
+
+<script>
+/* ---------- SERVICE WORKER ---------- */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
+
+/* ---------- NOTIFICATION PERMISSION ---------- */
+async function ensureNotificationPermission() {
+  if (Notification.permission === "granted") return true;
+  const perm = await Notification.requestPermission();
+  return perm === "granted";
+}
+
+/* ---------- CALCULATION + ALARM ---------- */
+let alarmTimeout;
+
+async function calculate() {
+  const cap = +capacity.value;
+  const start = +startPct.value;
+  const target = +targetPct.value;
+  const power = +power.value;
+
+  if (target <= start) {
+    result.textContent = "Target must be higher than current charge.";
+    return;
+  }
+
+  const energy = cap * (target - start) / 100;
+  const hours = energy / power;
+
+  const startDate = startTime.value
+    ? new Date(startTime.value)
+    : new Date();
+
+  const endDate = new Date(startDate.getTime() + hours * 3600000);
+
+  result.innerHTML = `
+    <strong>Energy:</strong> ${energy.toFixed(2)} kWh<br>
+    <strong>Time:</strong> ${hours.toFixed(2)} h<br>
+    <strong>Unplug at:</strong><br>${endDate.toLocaleString()}
+  `;
+
+  if (!(await ensureNotificationPermission())) {
+    alert("Notification permission denied.");
+    return;
+  }
+
+  if (alarmTimeout) clearTimeout(alarmTimeout);
+
+  const delay = endDate - Date.now();
+  if (delay > 0) {
+    alarmTimeout = setTimeout(() => {
+      navigator.serviceWorker.ready.then(reg =>
+        reg.showNotification("EV Charging Complete", {
+          body: "Estimated target charge reached. You can unplug now.",
+          vibrate: [200, 100, 200],
+        })
+      );
+    }, delay);
+  }
+}
+
+/* ---------- DEFAULT START TIME = NOW ---------- */
+const now = new Date();
+now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+startTime.value = now.toISOString().slice(0,16);
+</script>
+</body>
+</html>
