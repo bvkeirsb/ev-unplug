@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planon Modern Geo-Location</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --planon-blue: #0070ad;
+            --planon-light-grey: #f5f5f5;
+            --planon-border: #d1d1d1;
+            --planon-text: #333;
+        }
+
+        body {
+            font-family: "Segoe UI", Tahoma, sans-serif;
+            background-color: #e9ecef;
+            color: var(--planon-text);
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            width: 1000px;
+            border-top: 4px solid var(--planon-blue);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        h2 { color: var(--planon-blue); margin-top: 0; font-size: 1.2rem; grid-column: span 2; border-bottom: 1px solid var(--planon-border); padding-bottom: 10px; }
+
+        .form-group { margin-bottom: 15px; position: relative; }
+
+        label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 5px; color: #555; }
+
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--planon-border);
+            border-radius: 2px;
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        input:focus { border-color: var(--planon-blue); }
+
+        /* Autocomplete logic */
+        #autocomplete-results {
+            position: absolute;
+            background: white;
+            border: 1px solid var(--planon-border);
+            width: 100%;
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .result-item {
+            padding: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            border-bottom: 1px solid #eee;
+        }
+
+        .result-item:hover { background-color: var(--planon-light-grey); }
+
+        #map {
+            height: 400px;
+            width: 100%;
+            border: 1px solid var(--planon-border);
+            border-radius: 4px;
+        }
+
+        .coords-box {
+            background: var(--planon-light-grey);
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-group {
+            grid-column: span 2;
+            text-align: right;
+            border-top: 1px solid var(--planon-border);
+            padding-top: 15px;
+        }
+
+        .btn {
+            background: var(--planon-blue);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            padding: 2px 5px;
+            background: #28a745;
+            color: white;
+            border-radius: 3px;
+            float: right;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Property Location Details</h2>
+
+    <div class="form-section">
+        <div class="form-group">
+            <label>Address Search (Autocomplete) <span id="val-status"></span></label>
+            <input type="text" id="address-search" placeholder="Start typing address...">
+            <div id="autocomplete-results"></div>
+        </div>
+
+        <div class="form-group">
+            <label>Street & Number</label>
+            <input type="text" id="street" readonly>
+        </div>
+
+        <div class="form-group" style="display: flex; gap: 10px;">
+            <div style="flex: 1;">
+                <label>Postal Code</label>
+                <input type="text" id="postcode" readonly>
+            </div>
+            <div style="flex: 2;">
+                <label>City</label>
+                <input type="text" id="city" readonly>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Country (ISO)</label>
+            <input type="text" id="country" readonly>
+        </div>
+
+        <div class="coords-box">
+            <div style="flex:1">
+                <label>Latitude</label>
+                <input type="text" id="lat" placeholder="0.0000">
+            </div>
+            <div style="flex:1">
+                <label>Longitude</label>
+                <input type="text" id="lng" placeholder="0.0000">
+            </div>
+        </div>
+        <p style="font-size: 0.75rem; color: #666;">Manual coordinate entry performs <i>Reverse Geocoding</i> without clearing address fields.</p>
+    </div>
+
+    <div class="map-section">
+        <label>Geographic Visualization</label>
+        <div id="map"></div>
+        <div style="margin-top: 10px;">
+            <button class="btn" style="background: #666; font-size: 0.8rem;" onclick="reverseGeocodeManual()">Sync Address from Pin</button>
+        </div>
+    </div>
+
+    <div class="btn-group">
+        <button class="btn">Save to Planon BO</button>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // Initialize Map centered on Europe
+    var map = L.map('map').setView([51.505, -0.09], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    var marker = L.marker([51.505, -0.09], {draggable: true}).addTo(map);
+
+    // Update lat/lng inputs when marker is dragged
+    marker.on('dragend', function(e) {
+        var position = marker.getLatLng();
+        document.getElementById('lat').value = position.lat.toFixed(6);
+        document.getElementById('lng').value = position.lng.toFixed(6);
+    });
+
+    // Autocomplete Logic
+    const searchInput = document.getElementById('address-search');
+    const resultsPanel = document.getElementById('autocomplete-results');
+
+    searchInput.addEventListener('input', function() {
+        if(this.value.length < 3) return;
+        
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${this.value}&addressdetails=1`)
+            .then(response => response.json())
+            .then(data => {
+                resultsPanel.innerHTML = '';
+                resultsPanel.style.display = 'block';
+                data.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'result-item';
+                    div.innerText = item.display_name;
+                    div.onclick = () => selectAddress(item);
+                    resultsPanel.appendChild(div);
+                });
+            });
+    });
+
+    function selectAddress(data) {
+        resultsPanel.style.display = 'none';
+        searchInput.value = data.display_name;
+        
+        // Populate fields
+        const addr = data.address;
+        document.getElementById('street').value = (addr.road || '') + ' ' + (addr.house_number || '');
+        document.getElementById('city').value = addr.city || addr.town || addr.village || '';
+        document.getElementById('postcode').value = addr.postcode || '';
+        document.getElementById('country').value = addr.country || '';
+        document.getElementById('lat').value = data.lat;
+        document.getElementById('lng').value = data.lon;
+        
+        document.getElementById('val-status').innerHTML = '<span class="badge">Validated</span>';
+
+        // Update Map
+        const pos = [data.lat, data.lon];
+        map.setView(pos, 16);
+        marker.setLatLng(pos);
+    }
+
+    // Reverse Geocoding Logic (Manual Lat/Lng Entry)
+    function reverseGeocodeManual() {
+        const lat = document.getElementById('lat').value;
+        const lng = document.getElementById('lng').value;
+        
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+            .then(response => response.json())
+            .then(data => {
+                if(data.address) {
+                    alert("Location found: " + data.display_name + ". Address fields updated.");
+                    selectAddress(data);
+                }
+            });
+    }
+
+    // Allow typing in coordinates to move marker
+    [document.getElementById('lat'), document.getElementById('lng')].forEach(el => {
+        el.addEventListener('change', () => {
+            const pos = [document.getElementById('lat').value, document.getElementById('lng').value];
+            marker.setLatLng(pos);
+            map.panTo(pos);
+        });
+    });
+</script>
+
+</body>
+</html>
