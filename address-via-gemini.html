@@ -3,259 +3,490 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Planon Modern Geo-Location</title>
+    <title>IWMS Modern Address & Geolocation</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root {
-            --planon-blue: #0070ad;
-            --planon-light-grey: #f5f5f5;
-            --planon-border: #d1d1d1;
-            --planon-text: #333;
+            --planon-blue: #005A8C;
+            --planon-light-blue: #E6F0F9;
+            --planon-bg: #F4F7F9;
+            --planon-border: #CBD5E1;
+            --planon-text: #334155;
+            --valid-green: #22C55E;
+            --invalid-orange: #F97316;
         }
 
         body {
-            font-family: "Segoe UI", Tahoma, sans-serif;
-            background-color: #e9ecef;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #E2E8F0;
             color: var(--planon-text);
+            margin: 0;
             padding: 20px;
             display: flex;
             justify-content: center;
         }
 
-        .container {
-            background: white;
-            width: 1000px;
-            border-top: 4px solid var(--planon-blue);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        .app-container {
+            background: #FFFFFF;
+            width: 100%;
+            max-width: 1200px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            padding: 20px;
         }
 
-        h2 { color: var(--planon-blue); margin-top: 0; font-size: 1.2rem; grid-column: span 2; border-bottom: 1px solid var(--planon-border); padding-bottom: 10px; }
+        .header {
+            grid-column: span 2;
+            background-color: var(--planon-blue);
+            color: white;
+            padding: 15px 20px;
+            font-size: 1.25rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
 
-        .form-group { margin-bottom: 15px; position: relative; }
+        .panel {
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
 
-        label { display: block; font-weight: 600; font-size: 0.85rem; margin-bottom: 5px; color: #555; }
+        .left-panel {
+            border-right: 1px solid var(--planon-border);
+        }
 
-        input, select {
-            width: 100%;
-            padding: 8px;
+        /* Form Elements */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #64748B;
+            margin-bottom: 4px;
+        }
+
+        input[type="text"] {
+            padding: 10px;
             border: 1px solid var(--planon-border);
-            border-radius: 2px;
-            box-sizing: border-box;
-            outline: none;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            color: var(--planon-text);
+            transition: border-color 0.2s;
         }
 
-        input:focus { border-color: var(--planon-blue); }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--planon-blue);
+            box-shadow: 0 0 0 2px var(--planon-light-blue);
+        }
 
-        /* Autocomplete logic */
-        #autocomplete-results {
+        input[readonly] {
+            background-color: #F8FAFC;
+            color: #94A3B8;
+        }
+
+        /* Autocomplete */
+        #search-input {
+            font-weight: bold;
+            border-color: var(--planon-blue);
+        }
+
+        #autocomplete-dropdown {
             position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
             background: white;
             border: 1px solid var(--planon-border);
-            width: 100%;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
             z-index: 1000;
-            max-height: 200px;
+            max-height: 250px;
             overflow-y: auto;
             display: none;
         }
 
-        .result-item {
-            padding: 8px;
-            cursor: pointer;
+        .autocomplete-item {
+            padding: 10px;
             font-size: 0.85rem;
-            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            border-bottom: 1px solid #F1F5F9;
         }
 
-        .result-item:hover { background-color: var(--planon-light-grey); }
+        .autocomplete-item:hover {
+            background-color: var(--planon-light-blue);
+        }
 
-        #map {
-            height: 400px;
-            width: 100%;
+        /* Buttons & Badges */
+        .btn {
+            padding: 8px 16px;
+            background-color: white;
             border: 1px solid var(--planon-border);
             border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--planon-text);
+            transition: all 0.2s;
         }
 
-        .coords-box {
-            background: var(--planon-light-grey);
-            padding: 10px;
+        .btn-primary {
+            background-color: var(--planon-blue);
+            color: white;
+            border-color: var(--planon-blue);
+        }
+
+        .btn-primary:hover { background-color: #00466E; }
+        .btn:hover:not(.btn-primary) { background-color: #F1F5F9; }
+
+        .status-banner {
+            padding: 10px 15px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background-color: #FFF7ED;
+            color: var(--invalid-orange);
+            border: 1px solid #FED7AA;
+        }
+
+        .status-banner.validated {
+            background-color: #F0FDF4;
+            color: #166534;
+            border-color: #BBF7D0;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: currentColor;
+        }
+
+        /* Map & Geocoding */
+        #map {
+            width: 100%;
+            height: 350px;
+            border-radius: 4px;
+            border: 1px solid var(--planon-border);
+            z-index: 1;
+        }
+
+        .rev-geocode-panel {
+            background-color: #F8FAFC;
+            border: 1px solid var(--planon-border);
+            padding: 15px;
             border-radius: 4px;
             margin-top: 10px;
-            display: flex;
-            gap: 10px;
         }
 
-        .btn-group {
-            grid-column: span 2;
-            text-align: right;
-            border-top: 1px solid var(--planon-border);
-            padding-top: 15px;
-        }
-
-        .btn {
-            background: var(--planon-blue);
-            color: white;
-            border: none;
-            padding: 8px 20px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        .badge {
-            font-size: 0.7rem;
-            padding: 2px 5px;
-            background: #28a745;
-            color: white;
-            border-radius: 3px;
-            float: right;
+        #preview-text {
+            font-size: 0.8rem;
+            color: #64748B;
+            margin-top: 10px;
+            min-height: 1.2rem;
+            font-style: italic;
         }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>Property Location Details</h2>
+<div class="app-container">
+    <div class="header">
+        <span>IWMS Address & Geolocation</span>
+        <span style="font-size: 0.9rem; font-weight: 400;">Global Standard Format</span>
+    </div>
 
-    <div class="form-section">
-        <div class="form-group">
-            <label>Address Search (Autocomplete) <span id="val-status"></span></label>
-            <input type="text" id="address-search" placeholder="Start typing address...">
-            <div id="autocomplete-results"></div>
+    <div class="panel left-panel">
+        <div id="status-banner" class="status-banner">
+            <div class="status-indicator"></div>
+            <span id="status-text">Not Validated - Awaiting Entry</span>
         </div>
 
         <div class="form-group">
-            <label>Street & Number</label>
-            <input type="text" id="street" readonly>
+            <label>Search & Autocomplete</label>
+            <input type="text" id="search-input" placeholder="Start typing address (e.g., Stationsplein 1 Nijmegen)..." autocomplete="off">
+            <div id="autocomplete-dropdown"></div>
         </div>
 
-        <div class="form-group" style="display: flex; gap: 10px;">
-            <div style="flex: 1;">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Address Line 1</label>
+                <input type="text" id="addr1" readonly>
+            </div>
+            <div class="form-group">
+                <label>Address Line 2 (Building/Floor)</label>
+                <input type="text" id="addr2" readonly>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>Locality / City / Town</label>
+                <input type="text" id="locality" readonly>
+            </div>
+            <div class="form-group">
                 <label>Postal Code</label>
                 <input type="text" id="postcode" readonly>
             </div>
-            <div style="flex: 2;">
-                <label>City</label>
-                <input type="text" id="city" readonly>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>Admin 1 (State/Province/Region)</label>
+                <input type="text" id="admin1" readonly>
+            </div>
+            <div class="form-group">
+                <label>Admin 2 (County/Municipality)</label>
+                <input type="text" id="admin2" readonly>
             </div>
         </div>
 
+        <div class="form-row">
+            <div class="form-group">
+                <label>Country</label>
+                <input type="text" id="country" readonly>
+            </div>
+            <div class="form-group">
+                <label>Country Code (ISO-3166-1 alpha-2)</label>
+                <input type="text" id="country_code" readonly>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <button class="btn btn-primary" id="btn-unlock" onclick="unlockForEdits()">Unlock for manual edits</button>
+            <button class="btn" onclick="clearForm()">Clear Data</button>
+        </div>
+    </div>
+
+    <div class="panel right-panel">
         <div class="form-group">
-            <label>Country (ISO)</label>
-            <input type="text" id="country" readonly>
+            <label>Geographic Visualization (Drag pin to adjust coordinates manually)</label>
+            <div id="map"></div>
         </div>
 
-        <div class="coords-box">
-            <div style="flex:1">
-                <label>Latitude</label>
-                <input type="text" id="lat" placeholder="0.0000">
+        <div class="rev-geocode-panel">
+            <label style="color: var(--planon-text);">Current Pin Coordinates</label>
+            <div class="form-row" style="margin-bottom: 15px;">
+                <div class="form-group">
+                    <label>Latitude</label>
+                    <input type="text" id="lat" value="0.000000" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Longitude</label>
+                    <input type="text" id="lng" value="0.000000" readonly>
+                </div>
             </div>
-            <div style="flex:1">
-                <label>Longitude</label>
-                <input type="text" id="lng" placeholder="0.0000">
+
+            <label style="color: var(--planon-text);">Reverse Geocoding</label>
+            <div style="display: flex; gap: 10px; margin-top: 5px;">
+                <button class="btn" onclick="previewReverseGeocode()">Preview Address from Pin</button>
+                <button class="btn btn-primary" onclick="applyReverseGeocode()">Apply Pin Address to Form</button>
             </div>
+            <div id="preview-text">Click 'Preview' to see what address matches the current pin location...</div>
         </div>
-        <p style="font-size: 0.75rem; color: #666;">Manual coordinate entry performs <i>Reverse Geocoding</i> without clearing address fields.</p>
-    </div>
-
-    <div class="map-section">
-        <label>Geographic Visualization</label>
-        <div id="map"></div>
-        <div style="margin-top: 10px;">
-            <button class="btn" style="background: #666; font-size: 0.8rem;" onclick="reverseGeocodeManual()">Sync Address from Pin</button>
-        </div>
-    </div>
-
-    <div class="btn-group">
-        <button class="btn">Save to Planon BO</button>
     </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // Initialize Map centered on Europe
-    var map = L.map('map').setView([51.505, -0.09], 13);
+    // --- State Management ---
+    let isValidated = false;
+
+    // --- Map Initialization ---
+    const map = L.map('map').setView([51.8427, 5.8527], 2); // Default zoom out
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    var marker = L.marker([51.505, -0.09], {draggable: true}).addTo(map);
+    const marker = L.marker([51.8427, 5.8527], { draggable: true }).addTo(map);
 
-    // Update lat/lng inputs when marker is dragged
+    // Update lat/lng inputs when marker is dragged (Does NOT overwrite address form)
     marker.on('dragend', function(e) {
-        var position = marker.getLatLng();
+        const position = marker.getLatLng();
         document.getElementById('lat').value = position.lat.toFixed(6);
         document.getElementById('lng').value = position.lng.toFixed(6);
+        document.getElementById('preview-text').innerText = "Pin moved. Click 'Preview' to check the new location's address.";
     });
 
-    // Autocomplete Logic
-    const searchInput = document.getElementById('address-search');
-    const resultsPanel = document.getElementById('autocomplete-results');
+    // --- Autocomplete & Geocoding Logic ---
+    const searchInput = document.getElementById('search-input');
+    const dropdown = document.getElementById('autocomplete-dropdown');
+    let debounceTimer;
 
     searchInput.addEventListener('input', function() {
-        if(this.value.length < 3) return;
+        clearTimeout(debounceTimer);
+        const query = this.value;
         
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${this.value}&addressdetails=1`)
-            .then(response => response.json())
-            .then(data => {
-                resultsPanel.innerHTML = '';
-                resultsPanel.style.display = 'block';
-                data.forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = 'result-item';
-                    div.innerText = item.display_name;
-                    div.onclick = () => selectAddress(item);
-                    resultsPanel.appendChild(div);
-                });
-            });
+        if (query.length < 3) {
+            dropdown.style.display = 'none';
+            return;
+        }
+
+        debounceTimer = setTimeout(() => {
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`)
+                .then(response => response.json())
+                .then(data => {
+                    dropdown.innerHTML = '';
+                    if (data.length > 0) {
+                        dropdown.style.display = 'block';
+                        data.forEach(item => {
+                            const div = document.createElement('div');
+                            div.className = 'autocomplete-item';
+                            div.innerText = item.display_name;
+                            div.onclick = () => selectLocation(item);
+                            dropdown.appendChild(div);
+                        });
+                    } else {
+                        dropdown.style.display = 'none';
+                    }
+                })
+                .catch(err => console.error("Geocoding error:", err));
+        }, 500); // 500ms debounce
     });
 
-    function selectAddress(data) {
-        resultsPanel.style.display = 'none';
-        searchInput.value = data.display_name;
-        
-        // Populate fields
-        const addr = data.address;
-        document.getElementById('street').value = (addr.road || '') + ' ' + (addr.house_number || '');
-        document.getElementById('city').value = addr.city || addr.town || addr.village || '';
-        document.getElementById('postcode').value = addr.postcode || '';
-        document.getElementById('country').value = addr.country || '';
-        document.getElementById('lat').value = data.lat;
-        document.getElementById('lng').value = data.lon;
-        
-        document.getElementById('val-status').innerHTML = '<span class="badge">Validated</span>';
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (e.target !== searchInput) {
+            dropdown.style.display = 'none';
+        }
+    });
 
-        // Update Map
-        const pos = [data.lat, data.lon];
+    function selectLocation(data) {
+        searchInput.value = data.display_name;
+        dropdown.style.display = 'none';
+        
+        populateForm(data.address);
+        
+        // Update Coordinates & Map
+        const lat = parseFloat(data.lat);
+        const lon = parseFloat(data.lon);
+        document.getElementById('lat').value = lat.toFixed(6);
+        document.getElementById('lng').value = lon.toFixed(6);
+        
+        const pos = [lat, lon];
         map.setView(pos, 16);
         marker.setLatLng(pos);
+        
+        setValidatedState(true);
+        lockInputs(true);
     }
 
-    // Reverse Geocoding Logic (Manual Lat/Lng Entry)
-    function reverseGeocodeManual() {
+    function populateForm(address) {
+        if (!address) return;
+
+        // Smart mapping for global context
+        const road = address.road || address.pedestrian || '';
+        const houseNum = address.house_number || '';
+        document.getElementById('addr1').value = `${road} ${houseNum}`.trim();
+        document.getElementById('addr2').value = ''; // Leave blank for manual entry of floors/suites
+        
+        document.getElementById('locality').value = address.city || address.town || address.village || address.suburb || '';
+        document.getElementById('postcode').value = address.postcode || '';
+        
+        // Admin levels
+        document.getElementById('admin1').value = address.state || address.region || address.province || '';
+        document.getElementById('admin2').value = address.county || address.municipality || address.district || '';
+        
+        document.getElementById('country').value = address.country || '';
+        document.getElementById('country_code').value = (address.country_code || '').toUpperCase();
+    }
+
+    // --- Reverse Geocoding ---
+    function fetchReverseGeocode(callback) {
         const lat = document.getElementById('lat').value;
         const lng = document.getElementById('lng').value;
         
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+        document.getElementById('preview-text').innerText = "Fetching address...";
+        
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`)
             .then(response => response.json())
-            .then(data => {
-                if(data.address) {
-                    alert("Location found: " + data.display_name + ". Address fields updated.");
-                    selectAddress(data);
-                }
+            .then(data => callback(data))
+            .catch(err => {
+                console.error(err);
+                document.getElementById('preview-text').innerText = "Error fetching address.";
             });
     }
 
-    // Allow typing in coordinates to move marker
-    [document.getElementById('lat'), document.getElementById('lng')].forEach(el => {
-        el.addEventListener('change', () => {
-            const pos = [document.getElementById('lat').value, document.getElementById('lng').value];
-            marker.setLatLng(pos);
-            map.panTo(pos);
+    function previewReverseGeocode() {
+        fetchReverseGeocode((data) => {
+            if (data && data.display_name) {
+                document.getElementById('preview-text').innerText = `Preview: ${data.display_name}`;
+            } else {
+                document.getElementById('preview-text').innerText = "No specific address found for this location.";
+            }
         });
-    });
-</script>
+    }
 
+    function applyReverseGeocode() {
+        fetchReverseGeocode((data) => {
+            if (data && data.address) {
+                populateForm(data.address);
+                searchInput.value = data.display_name;
+                setValidatedState(true);
+                lockInputs(true);
+                document.getElementById('preview-text').innerText = "Address applied successfully.";
+            }
+        });
+    }
+
+    // --- Form State Management ---
+    function setValidatedState(isValid) {
+        isValidated = isValid;
+        const banner = document.getElementById('status-banner');
+        const text = document.getElementById('status-text');
+        
+        if (isValid) {
+            banner.classList.add('validated');
+            text.innerText = "VALIDATED - Locked to Geographic Database";
+        } else {
+            banner.classList.remove('validated');
+            text.innerText = "UNVALIDATED - Manual Entry / User Edited";
+        }
+    }
+
+    function lockInputs(isLocked) {
+        const inputs = document.querySelectorAll('.left-panel input[type="text"]:not(#search-input)');
+        inputs.forEach(input => {
+            input.readOnly = isLocked;
+        });
+        document.getElementById('btn-unlock').style.display = isLocked ? 'block' : 'none';
+    }
+
+    function unlockForEdits() {
+        lockInputs(false);
+        setValidatedState(false);
+        document.getElementById('preview-text').innerText = "Form unlocked. Changes will break validation link.";
+    }
+
+    function clearForm() {
+        const inputs = document.querySelectorAll('.left-panel input[type="text"]');
+        inputs.forEach(input => input.value = '');
+        document.getElementById('lat').value = '0.000000';
+        document.getElementById('lng').value = '0.000000';
+        document.getElementById('preview-text').innerText = '';
+        setValidatedState(false);
+        lockInputs(false);
+        map.setView([20, 0], 2);
+    }
+</script>
 </body>
 </html>
