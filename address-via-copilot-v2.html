@@ -110,8 +110,7 @@ button.primary{background:var(--p-blue);color:#fff;border-color:var(--p-blue)}
   var memo = $('memo');
   var lang = ((navigator.language||'en').split('-')[0]) || 'en';
   var reverseModel = null;
-  var NL = '
-'; // explicit newline char code
+  var NL = '\n'; // explicit newline char code
 
   // Map (compact), click to drop pin
   var map = L.map('map');
