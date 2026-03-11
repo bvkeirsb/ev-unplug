@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Planon - Address Entry & Validation (Compact Map v1.3)</title>
+<title>Planon - Address Entry & Validation (Compact Map v1.3.1)</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
 <style>
 :root { --p-blue:#003B73; --p-cyan:#00A0E3; --p-bg:#f5f8fb; --p-text:#0e1b2a; --p-border:#d9e1ea; --p-muted:#6a7b8c; --shadow:0 6px 18px rgba(0,0,0,.08); --radius:10px; --font:ui-sans-serif, system-ui, Segoe UI, Roboto, Arial; }
@@ -104,19 +104,21 @@ button.primary{background:var(--p-blue);color:#fff;border-color:var(--p-blue)}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
 <script>
 (function(){
-  const $ = function(id){ return document.getElementById(id); };
-  const acList = $('ac-list');
-  const search = $('search');
-  const memo = $('memo');
-  const lang = ((navigator.language||'en').split('-')[0]) || 'en';
-  let reverseModel = null;
+  var $ = function(id){ return document.getElementById(id); };
+  var acList = $('ac-list');
+  var search = $('search');
+  var memo = $('memo');
+  var lang = ((navigator.language||'en').split('-')[0]) || 'en';
+  var reverseModel = null;
+  var NL = '
+'; // explicit newline char code
 
   // Map (compact), click to drop pin
-  const map = L.map('map');
+  var map = L.map('map');
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap contributors'}).addTo(map);
-  const start = [51.842, 5.852]; // Nijmegen
+  var start = [51.842, 5.852]; // Nijmegen
   map.setView(start, 12);
-  const marker = L.marker(start, {draggable:true}).addTo(map);
+  var marker = L.marker(start, {draggable:true}).addTo(map);
 
   function setCoords(lat, lon){ $('lat').value = (+lat).toFixed(6); $('lon').value = (+lon).toFixed(6); }
   marker.on('dragend', function(e){ var pos = e.target.getLatLng(); setCoords(pos.lat, pos.lng); });
@@ -125,24 +127,24 @@ button.primary{background:var(--p-blue);color:#fff;border-color:var(--p-blue)}
   // Provider: Photon (Komoot) — guarded
   async function photonSearch(q){
     if(!q || q.trim().length < 3) return {features:[]};
-    const url = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(q.trim()) + '&limit=8&lang=' + encodeURIComponent(lang);
+    var url = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(q.trim()) + '&limit=8&lang=' + encodeURIComponent(lang);
     try {
-      const res = await fetch(url, {headers:{'Accept':'application/json'}});
+      var res = await fetch(url, {headers:{'Accept':'application/json'}});
       if(!res.ok) return {features:[]};
       return await res.json();
     } catch (e) { return {features:[]}; }
   }
   async function photonReverse(lat,lon){
-    const url = 'https://photon.komoot.io/reverse?lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lon) + '&lang=' + encodeURIComponent(lang);
+    var url = 'https://photon.komoot.io/reverse?lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lon) + '&lang=' + encodeURIComponent(lang);
     try {
-      const res = await fetch(url, {headers:{'Accept':'application/json'}});
+      var res = await fetch(url, {headers:{'Accept':'application/json'}});
       if(!res.ok) return {features:[]};
       return await res.json();
     } catch (e) { return {features:[]}; }
   }
 
   function fillFromFeature(f){
-    const p = (f && f.properties) ? f.properties : {}; const coords = (f && f.geometry && f.geometry.coordinates) ? f.geometry.coordinates : [];
+    var p = (f && f.properties) ? f.properties : {}; var coords = (f && f.geometry && f.geometry.coordinates) ? f.geometry.coordinates : [];
     $('line1').value = [p.housenumber, p.street].filter(Boolean).join(' ');
     $('line2').value = '';
     $('city').value = p.city || p.town || p.village || '';
@@ -158,19 +160,19 @@ button.primary{background:var(--p-blue);color:#fff;border-color:var(--p-blue)}
   function buildItem(label){ var div = document.createElement('div'); div.className='autocomplete-item'; div.setAttribute('role','option'); div.textContent = label || '(unknown)'; return div; }
 
   search.addEventListener('input', async function(e){
-    const q = e.target.value; if(!q || q.trim().length < 3){ hideAC(); return; }
-    const data = await photonSearch(q); acList.innerHTML='';
+    var q = e.target.value; if(!q || q.trim().length < 3){ hideAC(); return; }
+    var data = await photonSearch(q); acList.innerHTML='';
     (data.features || []).forEach(function(f){
-      const p = f.properties || {}; const label = p.name || [p.housenumber, p.street, p.city].filter(Boolean).join(' ');
-      const div = buildItem(label); div.onclick = function(){ fillFromFeature(f); hideAC(); buildPostalMemo(); }; acList.appendChild(div);
+      var p = f.properties || {}; var label = p.name || [p.housenumber, p.street, p.city].filter(Boolean).join(' ');
+      var div = buildItem(label); div.onclick = function(){ fillFromFeature(f); hideAC(); buildPostalMemo(); }; acList.appendChild(div);
     });
     acList.hidden = !(data.features||[]).length; search.setAttribute('aria-expanded', String(!acList.hidden));
   });
   document.addEventListener('click', function(e){ if(!acList.contains(e.target) && e.target !== search) hideAC(); });
 
   function buildPostalMemo(){
-    const cc = ($('cc').value||'').toUpperCase();
-    const line1 = $('line1').value; const line2 = $('line2').value; const city = $('city').value; const district = $('district').value; const region = $('region').value; const postal = $('postal').value; const country = $('country').value;
+    var cc = ($('cc').value||'').toUpperCase();
+    var line1 = $('line1').value; var line2 = $('line2').value; var city = $('city').value; var district = $('district').value; var region = $('region').value; var postal = $('postal').value; var country = $('country').value;
     var arr;
     if(cc==='US' || cc==='CA'){
       arr = [line1, line2, city + (district? ', ' + district : '') + ', ' + region + ' ' + postal, country];
@@ -181,13 +183,13 @@ button.primary{background:var(--p-blue);color:#fff;border-color:var(--p-blue)}
     } else {
       arr = [line1, line2, postal + ' ' + city, region, country];
     }
-    memo.value = arr.filter(Boolean).join('
-').trim();
+    // Use explicit char code for newline to avoid accidental literal newlines
+    memo.value = arr.filter(Boolean).join(NL).trim();
   }
 
   $('reverse').addEventListener('click', async function(){
-    const lat = $('lat').value, lon = $('lon').value; if(!lat || !lon) return;
-    const data = await photonReverse(lat, lon); const f = (data.features||[])[0]; if(!f) return;
+    var lat = $('lat').value, lon = $('lon').value; if(!lat || !lon) return;
+    var data = await photonReverse(lat, lon); var f = (data.features||[])[0]; if(!f) return;
     reverseModel = f; $('preview').value = (f.properties && f.properties.name) ? f.properties.name : [f.properties && f.properties.housenumber, f.properties && f.properties.street, f.properties && f.properties.city].filter(Boolean).join(' ');
     $('apply').disabled = false;
   });
