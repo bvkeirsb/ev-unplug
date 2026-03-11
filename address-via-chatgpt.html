@@ -10,19 +10,22 @@ body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f5f7fa;color:#1
 header{background:#0f4c81;color:white;padding:14px 20px;font-size:20px;font-weight:600}
 .container{display:grid;grid-template-columns:420px 1fr;height:calc(100vh - 52px)}
 .panel{padding:20px;background:white;border-right:1px solid #dcdcdc;overflow:auto}
-.field{margin-bottom:12px}
+.field{margin-bottom:10px}
 label{display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#444}
-input{width:100%;padding:8px;border:1px solid #cfd6e0;border-radius:4px}
+input,select{width:100%;padding:7px;border:1px solid #cfd6e0;border-radius:4px}
 input:focus{outline:none;border-color:#0f4c81}
-#map{height:100%;background:#e9eef5;display:flex;align-items:center;justify-content:center;color:#666;font-size:14px}
-button{background:#0f4c81;color:white;border:none;padding:8px 10px;border-radius:4px;margin-right:6px;cursor:pointer}
+#map{height:100%}
+button{background:#0f4c81;color:white;border:none;padding:8px 10px;border-radius:4px;margin-right:6px;margin-top:4px;cursor:pointer}
 button.secondary{background:#6c7a89}
+button.green{background:#2e7d32}
+button.orange{background:#d9822b}
 #suggestions{border:1px solid #cfd6e0;border-top:none;max-height:150px;overflow:auto}
 .suggestion{padding:6px 8px;cursor:pointer}
 .suggestion:hover{background:#eef3f9}
 .coords{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .small{font-size:11px;color:#666}
 .warning{color:#b00020;font-size:12px;margin-top:4px}
+.locked{background:#f2f2f2}
 </style>
 </head>
 <body>
@@ -35,20 +38,33 @@ button.secondary{background:#6c7a89}
 <label>Search address</label>
 <input id="search" placeholder="Start typing address..." autocomplete="off"/>
 <div id="suggestions"></div>
-<div class="small">Autocomplete via OpenStreetMap Nominatim</div>
+<div class="small">Autocomplete via Photon (OpenStreetMap search API)</div>
 <div id="error" class="warning"></div>
 </div>
 
 <hr/>
 
+<h4>Address</h4>
+
 <div class="field"><label>Street</label><input id="street"></div>
 <div class="field"><label>House number</label><input id="housenumber"></div>
 <div class="field"><label>Postal code</label><input id="postcode"></div>
 <div class="field"><label>City</label><input id="city"></div>
+
+<hr/>
+
+<h4>Administrative hierarchy</h4>
+
+<div class="field"><label>District</label><input id="district"></div>
 <div class="field"><label>Municipality</label><input id="municipality"></div>
+<div class="field"><label>County / Province</label><input id="province"></div>
 <div class="field"><label>State / Region</label><input id="state"></div>
 <div class="field"><label>Country</label><input id="country"></div>
 <div class="field"><label>Country code</label><input id="countrycode"></div>
+
+<hr/>
+
+<h4>Coordinates</h4>
 
 <div class="field coords">
 <div>
@@ -61,16 +77,21 @@ button.secondary{background:#6c7a89}
 </div>
 </div>
 
-<br/>
+<hr/>
+
+<button class="green" onclick="validateAddress()">Validate / Lock address</button>
+<button class="orange" onclick="unlockAddress()">Unlock</button>
+
+<br>
 
 <button onclick="reverseFromCoords()">Reverse geocode</button>
 <button class="secondary" onclick="clearAddress()">Clear</button>
 
-<p class="small">Marker can be dragged to adjust location without overwriting validated address.</p>
+<p class="small">Dragging marker updates coordinates but will NOT overwrite a locked address.</p>
 
 </div>
 
-<div id="map">Map loading...</div>
+<div id="map"></div>
 
 </div>
 
@@ -79,58 +100,48 @@ button.secondary{background:#6c7a89}
 
 (function(){
 
-/* --------------------------------------------------
-Safe Leaflet initialization (prevents "" is not a function
-when library fails to load)
--------------------------------------------------- */
+let addressLocked=false
+let map
+let marker
 
-var map
-var marker
+/* --------------------------- MAP INIT --------------------------- */
 
 function initMap(){
 
-if(typeof window.L === 'undefined'){
-
-console.warn('Leaflet failed to load. Running map in fallback mode.')
-
-document.getElementById('map').innerHTML = 'Map unavailable (offline mode)'
-
-map = {
-setView:function(){},
-on:function(){},
-}
-
-marker = {
-setLatLng:function(){},
-getLatLng:function(){return {lat:0,lng:0}}
-}
-
+if(typeof window.L==='undefined'){
+console.warn('Leaflet failed to load')
+document.getElementById('map').innerHTML='Map unavailable'
 return
 }
 
-map = L.map('map').setView([52.1,5.1],7)
+map=L.map('map').setView([52.1,5.1],7)
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
 maxZoom:19,
 attribution:'© OpenStreetMap'
 }).addTo(map)
 
-marker = L.marker([52.1,5.1],{draggable:true}).addTo(map)
+marker=L.marker([52.1,5.1],{draggable:true}).addTo(map)
 
-marker.on('dragend',function(){
-var p=marker.getLatLng()
+marker.on('dragend',()=>{
+const p=marker.getLatLng()
 setLatLon(p.lat,p.lng)
 })
 
-map.on('click',function(e){
+map.on('click',e=>{
 setMarker(e.latlng.lat,e.latlng.lng)
 })
 
 }
 
-/* --------------------------------------------------
-Helpers
--------------------------------------------------- */
+/* --------------------------- HELPERS --------------------------- */
+
+function setField(id,val){
+const el=document.getElementById(id)
+if(!el) return
+if(addressLocked) return
+el.value=val||''
+}
 
 function setLatLon(lat,lon){
 document.getElementById('lat').value=parseFloat(lat).toFixed(6)
@@ -140,27 +151,22 @@ document.getElementById('lon').value=parseFloat(lon).toFixed(6)
 function setMarker(lat,lon){
 lat=parseFloat(lat)
 lon=parseFloat(lon)
-if(marker && marker.setLatLng) marker.setLatLng([lat,lon])
-if(map && map.setView) map.setView([lat,lon],16)
+
+if(marker) marker.setLatLng([lat,lon])
+if(map) map.setView([lat,lon],16)
+
 setLatLon(lat,lon)
 }
 
-function setField(id,val){
-var el=document.getElementById(id)
-if(el) el.value=val||''
-}
+/* --------------------------- SEARCH --------------------------- */
 
-/* --------------------------------------------------
-Search / Autocomplete
--------------------------------------------------- */
+const search=document.getElementById('search')
+const suggestions=document.getElementById('suggestions')
+const errorBox=document.getElementById('error')
 
-var search=document.getElementById('search')
-var suggestions=document.getElementById('suggestions')
-var errorBox=document.getElementById('error')
+search.addEventListener('input',async()=>{
 
-search.addEventListener('input',async function(){
-
-var q=search.value.trim()
+const q=search.value.trim()
 
 if(q.length<3){
 suggestions.innerHTML=''
@@ -169,57 +175,68 @@ return
 
 try{
 
-var url='https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q='+encodeURIComponent(q)
+const url=`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5`
 
-var res=await fetch(url,{headers:{'Accept':'application/json'}})
+const res=await fetch(url)
 
-if(!res.ok) throw new Error('Network response was not ok')
+if(!res.ok) throw new Error('API error')
 
-var data=await res.json()
+const data=await res.json()
 
-renderSuggestions(data)
+renderSuggestions(data.features||[])
 
 errorBox.textContent=''
 
 }catch(err){
 
-console.warn('Address lookup failed',err)
+console.warn(err)
 
-errorBox.textContent='Address lookup failed (network/CORS). Using demo data.'
+errorBox.textContent='Address lookup failed. Using demo data.'
 
-var mock=[{
-lat:52.379189,
-lon:4.899431,
-display_name:'Dam Square, Amsterdam, Netherlands',
-address:{
-road:'Dam',
+renderSuggestions([{properties:{
+name:'Dam',
 city:'Amsterdam',
 state:'North Holland',
-postcode:'1012',
 country:'Netherlands',
-country_code:'nl'
-}
-}]
-
-renderSuggestions(mock)
+countrycode:'NL',
+postcode:'1012'
+},geometry:{coordinates:[4.899431,52.379189]}}])
 
 }
 
 })
 
-function renderSuggestions(data){
+function renderSuggestions(list){
 
 suggestions.innerHTML=''
 
-(data||[]).slice(0,5).forEach(function(place){
+list.forEach(place=>{
 
-var div=document.createElement('div')
+const props=place.properties||place
+
+/* Build a clear human readable label */
+const street=props.street||props.name||''
+const house=props.housenumber||''
+const city=props.city||props.town||props.village||''
+const country=props.country||''
+
+let label=''
+
+if(street) label+=street
+if(house) label+=' '+house
+if(city) label+=', '+city
+if(country) label+=', '+country
+
+if(!label) label='Address result'
+
+const div=document.createElement('div')
 
 div.className='suggestion'
 
-div.textContent=place.display_name
+div.textContent=label
 
-div.onclick=function(){selectAddress(place)}
+/* store full place object */
+div.onclick=()=>selectAddress(place)
 
 suggestions.appendChild(div)
 
@@ -227,77 +244,109 @@ suggestions.appendChild(div)
 
 }
 
-/* --------------------------------------------------
-Address population
--------------------------------------------------- */
+/* --------------------------- ADDRESS SELECT --------------------------- */
 
 function selectAddress(place){
 
 suggestions.innerHTML=''
 
-if(place.display_name) search.value=place.display_name
+const props=place.properties||place
 
-var a=place.address||{}
-
-setField('street',a.road)
-setField('housenumber',a.house_number)
-setField('postcode',a.postcode)
-setField('city',a.city||a.town||a.village)
-setField('municipality',a.municipality)
-setField('state',a.state)
-setField('country',a.country)
-setField('countrycode',(a.country_code||'').toUpperCase())
-
-if(place.lat && place.lon){
-setMarker(place.lat,place.lon)
+/* Coordinates */
+if(place.geometry && place.geometry.coordinates){
+const [lon,lat]=place.geometry.coordinates
+setMarker(lat,lon)
 }
 
+/* Address components */
+
+setField('street',props.street||props.name)
+setField('housenumber',props.housenumber||props.house_number)
+setField('postcode',props.postcode)
+
+setField('city',props.city||props.town||props.village)
+
+/* Administrative hierarchy */
+setField('district',props.district||props.suburb)
+setField('municipality',props.city)
+setField('province',props.county)
+setField('state',props.state)
+
+setField('country',props.country)
+setField('countrycode',(props.countrycode||props.country_code||'').toUpperCase())
+
 }
 
-/* --------------------------------------------------
-Reverse geocoding
--------------------------------------------------- */
+setField('street',props.street||props.name)
+setField('postcode',props.postcode)
+setField('city',props.city)
+setField('district',props.district)
+setField('municipality',props.city)
+setField('province',props.county)
+setField('state',props.state)
+setField('country',props.country)
+setField('countrycode',(props.countrycode||'').toUpperCase())
 
-window.reverseFromCoords = async function(){
+}
 
-var lat=document.getElementById('lat').value
-var lon=document.getElementById('lon').value
+/* --------------------------- REVERSE GEOCODE --------------------------- */
+
+window.reverseFromCoords=async function(){
+
+const lat=document.getElementById('lat').value
+const lon=document.getElementById('lon').value
 
 if(!lat||!lon) return
 
 try{
 
-var url='https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&lat='+lat+'&lon='+lon
+const url=`https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}`
 
-var res=await fetch(url,{headers:{'Accept':'application/json'}})
+const res=await fetch(url)
 
-if(!res.ok) throw new Error('Network error')
+if(!res.ok) throw new Error('Reverse lookup failed')
 
-var data=await res.json()
+const data=await res.json()
 
-selectAddress({
-lat:lat,
-lon:lon,
-display_name:data.display_name,
-address:data.address
-})
+if(data.features.length){
+selectAddress(data.features[0])
+}
 
 errorBox.textContent=''
 
 }catch(err){
-console.warn('Reverse geocoding failed',err)
-errorBox.textContent='Reverse geocoding failed. Coordinates kept.'
+console.warn(err)
+errorBox.textContent='Reverse lookup failed.'
 }
 
 }
 
-/* --------------------------------------------------
-Utility
--------------------------------------------------- */
+/* --------------------------- VALIDATION --------------------------- */
+
+window.validateAddress=function(){
+addressLocked=true
+
+document.querySelectorAll('.panel input').forEach(el=>{
+el.classList.add('locked')
+})
+}
+
+window.unlockAddress=function(){
+addressLocked=false
+
+document.querySelectorAll('.panel input').forEach(el=>{
+el.classList.remove('locked')
+})
+}
+
+/* --------------------------- UTILS --------------------------- */
 
 window.clearAddress=function(){
 
-document.querySelectorAll('input').forEach(function(i){i.value=''})
+if(addressLocked) return
+
+
+document.querySelectorAll('input').forEach(i=>i.value='')
 
 suggestions.innerHTML=''
 
@@ -305,39 +354,40 @@ errorBox.textContent=''
 
 }
 
-/* --------------------------------------------------
-Tests
--------------------------------------------------- */
+/* --------------------------- TESTS --------------------------- */
 
 function runTests(){
 
-console.log('Running demo tests...')
+console.log('Running tests')
 
 setMarker(52.1,5.1)
 
-console.assert(document.getElementById('lat').value!=='' ,'Latitude set')
-console.assert(document.getElementById('lon').value!=='' ,'Longitude set')
+console.assert(document.getElementById('lat').value!=='','Lat set')
+console.assert(document.getElementById('lon').value!=='','Lon set')
 
 setField('city','TestCity')
 
-console.assert(document.getElementById('city').value==='TestCity','Field setter works')
+console.assert(document.getElementById('city').value==='TestCity','setField works')
 
-selectAddress({
-lat:1,
-lon:2,
-display_name:'Test',
-address:{city:'DemoCity'}
-})
+validateAddress()
 
-console.assert(document.getElementById('city').value==='DemoCity','selectAddress populates fields')
+setField('city','ShouldNotChange')
+
+console.assert(document.getElementById('city').value==='TestCity','lock works')
+
+unlockAddress()
+
+setField('city','Changed')
+
+console.assert(document.getElementById('city').value==='Changed','unlock works')
 
 console.log('Tests finished')
 
 }
 
-window.runTests = runTests
+window.runTests=runTests
 
-/* -------------------------------------------------- */
+/* --------------------------- START --------------------------- */
 
 initMap()
 
