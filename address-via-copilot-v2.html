@@ -3,235 +3,598 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Planon - Address Entry & Validation (Compact Map v1.3.2)</title>
+<title>Planon - Address Entry & Validation (address-via-copilot-v2.html)</title>
 
-<!-- 1) Embedded favicon (inline, no external request) -->
+<!-- Embedded favicon (inline SVG) -->
 <link rel="icon" type="image/svg+xml"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' ry='12' fill='%23003B73'/%3E%3Ctext x='50%25' y='50%25' dy='.35em' text-anchor='middle' font-family='Segoe UI, Roboto, Arial, sans-serif' font-size='34' font-weight='700' fill='%2300A0E3'%3EP%3C/text%3E%3C/svg%3E" />
+href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' ry='12' fill='%23003B73'/%3E%3Ctext x='50%25' y='50%25' dy='.35em' text-anchor='middle' font-family='Segoe UI' font-size='34' font-weight='700' fill='%2300A0E3'%3EP%3C/text%3E%3C/svg%3E" />
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+crossorigin="anonymous" />
+
 <style>
-:root { --p-blue:#003B73; --p-cyan:#00A0E3; --p-bg:#f5f8fb; --p-text:#0e1b2a; --p-border:#d9e1ea; --p-muted:#6a7b8c; --shadow:0 6px 18px rgba(0,0,0,.08); --radius:10px; --font:ui-sans-serif, system-ui, Segoe UI, Roboto, Arial; }
+:root {
+  --p-blue:#003B73; --p-cyan:#00A0E3; --p-bg:#f5f8fb;
+  --p-text:#0e1b2a; --p-border:#d9e1ea; --p-muted:#6a7b8c;
+  --shadow:0 6px 18px rgba(0,0,0,.08); --radius:10px;
+  --font:ui-sans-serif, system-ui, Segoe UI, Roboto, Arial;
+}
 *{box-sizing:border-box}
 body{margin:0;font-family:var(--font);background:var(--p-bg);color:var(--p-text)}
 header{background:linear-gradient(90deg,var(--p-blue),#001d3d);color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px}
 header .logo{width:26px;height:26px;background:var(--p-cyan);border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:700}
+header .build{margin-left:auto;font-size:12px;opacity:.85}
 .container{display:grid;grid-template-columns:1fr 360px;gap:16px;padding:16px}
 @media (max-width:1080px){.container{grid-template-columns:1fr}}
-.panel{background:#fff;border:1px solid var(--p-border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
-.toolbar{background:#eef3f8;padding:10px 14px;border-bottom:1px solid var(--p-border);font-weight:600;display:flex;align-items:center;gap:8px}
+
+.panel{background:#fff;border:1px solid var(--p-border);
+  border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+
+.toolbar{background:#eef3f8;padding:10px 14px;border-bottom:1px solid var(--p-border);
+  font-weight:600;display:flex;align-items:center;gap:8px}
+
+.toolbar .right{margin-left:auto;display:flex;align-items:center;gap:10px}
+
 .content{padding:14px}
 .field{margin-bottom:12px}
 label{font-size:12px;color:var(--p-muted);margin-bottom:4px;display:block}
-input,textarea,select{width:100%;padding:10px;border:1px solid var(--p-border);border-radius:8px}
+input,textarea{width:100%;padding:10px;border:1px solid var(--p-border);border-radius:8px;background:#fff}
+textarea.readonly,input.readonly{background:#f7f9fc}
 textarea{resize:vertical}
+
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.autocomplete-list{position:absolute;background:#fff;border:1px solid var(--p-border);border-radius:8px;box-shadow:var(--shadow);max-height:260px;overflow:auto;z-index:1000}
+.inline3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px}
+
+.autocomplete-list{position:absolute;background:#fff;border:1px solid var(--p-border);
+  border-radius:8px;box-shadow:var(--shadow);max-height:260px;overflow:auto;z-index:1000}
+
 .autocomplete-item{padding:8px 10px;cursor:pointer;border-bottom:1px solid #f0f0f0}
 .autocomplete-item:last-child{border-bottom:none}
 .autocomplete-item:hover{background:#e2f2ff}
+.autocomplete-meta{font-size:12px;color:#5f6b77}
+
 #map{width:100%;height:240px;border-top:1px solid var(--p-border)}
+
 .small{font-size:12px;color:var(--p-muted)}
 button{padding:8px 12px;border-radius:8px;border:1px solid var(--p-border);cursor:pointer}
 button.primary{background:var(--p-blue);color:#fff;border-color:var(--p-blue)}
+
 .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.tip{margin-left:auto;font-size:12px;color:var(--p-muted)}
+
+.status-pill{
+  margin-left:8px;padding:2px 8px;border-radius:999px;
+  background:#eef3f8;color:#334;font-size:12px
+}
+.status-busy{background:#ffe7b3}
+.status-ok{background:#d9f7e6}
+
+/* Validation */
+input.error, textarea.error{border-color:#d93025;background:#fff7f7}
+.msg{font-size:12px;margin-top:4px}
+.msg.error{color:#d93025}
+.msg.warn{color:#935f00}
+
+#validationSummary{margin-top:8px;padding:8px;border:1px dashed #e0a800;
+  background:#fffaf0;border-radius:8px;display:none}
+#validationSummary .title{font-weight:600;margin-bottom:4px}
+
+.toggle{display:flex;align-items:center;gap:6px;font-size:12px;color:#334}
+
+/* Highlighting inside labels: keep size & spacing stable */
+label .hl { font-weight:600; font-size:inherit; line-height:inherit; }
 </style>
 </head>
 <body>
-<header><div class="logo" aria-hidden="true">P</div><h2>Planon - Address Entry & Validation</h2></header>
-<div class="container">
 
-<section class="panel" aria-labelledby="addr-title">
-  <div class="toolbar" id="addr-title">Address details & memo</div>
+<header>
+  <div class="logo">P</div>
+  <h2>Planon - Address Entry & Validation</h2>
+  <span class="build">Build: 2026-03-11 15:25 CET</span>
+</header>
+
+<div class="container">
+<section class="panel">
+  <div class="toolbar">
+    Address details & memo
+    <div class="right">
+      <label class="toggle">
+        <input type="checkbox" id="editToggle" />
+        Manual edit mode
+      </label>
+    </div>
+  </div>
+
   <div class="content">
+    <!-- Search -->
     <div class="field" style="position:relative;">
       <label for="search">Search address (start typing)</label>
-      <input id="search" placeholder="e.g. 10 Avenue des Champs-Elysees, Paris" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-owns="ac-list" />
+      <input id="search" placeholder="e.g. 10 Avenue des Champs-Elysees, Paris" autocomplete="off" />
       <div id="ac-list" class="autocomplete-list" role="listbox" hidden></div>
-      <div class="small">Type at least 3 characters. Select a suggestion to fill the form.</div>
+      <div class="small">Type at least 3 characters. Select a suggestion.</div>
     </div>
 
-    <div class="field"><label for="line1">Street + Number</label><input id="line1" placeholder="e.g. 10 Avenue des Champs-Elysees" /></div>
-    <div class="field"><label for="line2">Additional info</label><input id="line2" placeholder="e.g. Building, wing, floor" /></div>
+    <!-- Street / No / Suffix -->
+    <div class="field inline3">
+      <div>
+        <label for="street">Street name</label>
+        <input id="street" />
+        <div class="msg" id="msg-street"></div>
+      </div>
+      <div>
+        <label for="houseNo">Number</label>
+        <input id="houseNo" />
+        <div class="msg" id="msg-houseNo"></div>
+      </div>
+      <div>
+        <label for="houseSuffix">Suffix</label>
+        <input id="houseSuffix" />
+      </div>
+    </div>
 
+    <!-- Additional info -->
+    <div class="field">
+      <label for="line2">Additional info</label>
+      <input id="line2" />
+    </div>
+
+    <!-- City / District -->
     <div class="two">
-      <div class="field"><label for="city">City / Locality</label><input id="city" placeholder="e.g. Paris" /></div>
-      <div class="field"><label for="district">Municipality / District (Admin-2)</label><input id="district" placeholder="e.g. 8th arrondissement" /></div>
-    </div>
-    <div class="two">
-      <div class="field"><label for="region">Region / Province / State (Admin-1)</label><input id="region" placeholder="e.g. Ile-de-France" /></div>
-      <div class="field"><label for="postal">Postal Code</label><input id="postal" placeholder="e.g. 75008" /></div>
+      <div class="field">
+        <!-- City label with inline highlight options -->
+        <label for="city">
+          <span id="lbl-city-city" class="hl">City</span> /
+          <span id="lbl-city-locality">Locality</span>
+        </label>
+        <input id="city" />
+        <div class="msg" id="msg-city"></div>
+      </div>
+
+      <div class="field">
+        <!-- Admin-2 label: Municipality / District / County -->
+        <label for="district">
+          <span id="lbl-district-muni">Municipality</span> /
+          <span id="lbl-district-district">District</span> /
+          <span id="lbl-district-county" class="hl">County</span>
+        </label>
+        <input id="district" />
+      </div>
     </div>
 
+    <!-- Region / Postal -->
     <div class="two">
-      <div class="field"><label for="country">Country (name)</label><input id="country" placeholder="e.g. France" /></div>
-      <div class="field"><label for="cc">Country Code (ISO 3166-1 alpha-2)</label><input id="cc" maxlength="2" placeholder="e.g. FR" /></div>
+      <div class="field">
+        <!-- Admin-1 label: Region / Province / State -->
+        <label for="region">
+          <span id="lbl-region-region" class="hl">Region</span> /
+          <span id="lbl-region-province">Province</span> /
+          <span id="lbl-region-state">State</span>
+        </label>
+        <input id="region" />
+      </div>
+      <div class="field">
+        <label for="postal">Postal Code</label>
+        <input id="postal" />
+        <div class="msg" id="msg-postal"></div>
+      </div>
     </div>
 
+    <!-- Country / CC -->
     <div class="two">
-      <div class="field"><label for="lat">Latitude</label><input id="lat" placeholder="e.g. 48.8698" inputmode="decimal" /></div>
-      <div class="field"><label for="lon">Longitude</label><input id="lon" placeholder="e.g. 2.3075" inputmode="decimal" /></div>
+      <div class="field">
+        <label for="country">Country / Region</label>
+        <input id="country" />
+        <div class="msg" id="msg-country"></div>
+      </div>
+      <div class="field">
+        <label for="cc">Country Code (ISO 3166‑1 alpha‑2)</label>
+        <input id="cc" maxlength="2" />
+        <div class="msg" id="msg-cc"></div>
+      </div>
     </div>
 
+    <!-- Lat/Lon -->
+    <div class="two">
+      <div class="field">
+        <label for="lat">Latitude</label>
+        <input id="lat" inputmode="decimal" />
+        <div class="msg" id="msg-lat"></div>
+      </div>
+      <div class="field">
+        <label for="lon">Longitude</label>
+        <input id="lon" inputmode="decimal" />
+        <div class="msg" id="msg-lon"></div>
+      </div>
+    </div>
+
+    <!-- Validation -->
+    <div id="validationSummary">
+      <div class="title">Validation results</div>
+      <ul id="validationList" class="small"></ul>
+    </div>
+
+    <!-- Memo -->
     <div class="field">
       <label for="memo">Formatted postal address (memo)</label>
-      <textarea id="memo" rows="5" placeholder="Full formatted address will appear here in typical postal format"></textarea>
-      <div class="small">This is the final postal label exactly as it should appear on envelopes or documents.</div>
+      <textarea id="memo" rows="5" readonly class="readonly"></textarea>
+      <div class="small">Final envelope-ready address.</div>
     </div>
 
     <div class="actions">
-      <button class="primary" id="validate" type="button">Validate</button>
-      <button id="format" type="button">Generate postal format</button>
-      <span class="tip">Tip: Use the map on the right to click a location and place a pin.</span>
+      <button class="primary" id="validate">Validate</button>
+      <button id="format">Generate postal format</button>
     </div>
   </div>
 </section>
 
-<aside class="panel" aria-labelledby="map-title">
-  <div class="toolbar" id="map-title">Map (auxiliary)</div>
+<!-- MAP -->
+<aside class="panel">
+  <div class="toolbar">
+    Map (auxiliary) <span id="revStatus" class="status-pill"></span>
+  </div>
+
   <div class="content" style="padding-bottom:0;">
-    <div class="small" style="margin-bottom:8px;">Click the map to place a pin. Use Reverse geocode to preview; press Apply to copy to the form.</div>
+    <div class="small">Click map to place a pin. Reverse for preview.</div>
     <div class="actions" style="margin-bottom:8px;">
-      <button id="reverse" type="button">Reverse geocode (from pin)</button>
-      <button id="apply" type="button" disabled>Apply reverse result</button>
+      <button id="reverse">Reverse geocode</button>
+      <button id="apply" disabled>Apply reverse result</button>
     </div>
   </div>
-  <div id="map" role="img" aria-label="Map with draggable marker"></div>
+
+  <div id="map" aria-label="Map"></div>
+
   <div class="content" style="border-top:1px solid var(--p-border)">
-    <div class="field"><label for="preview">Reverse preview (read-only)</label><input id="preview" readonly placeholder="No preview yet" /></div>
+    <div class="field">
+      <label for="preview">Reverse preview (multiline)</label>
+      <textarea id="preview" rows="4" readonly style="white-space:pre-line"></textarea>
+    </div>
+    <details id="rawWrap">
+      <summary>Raw JSON (reverse)</summary>
+      <pre id="rawJson" class="small"
+style="overflow:auto;max-height:240px;background:#f7f9fc;padding:8px;border:1px solid var(--p-border);border-radius:8px;"></pre>
+    </details>
   </div>
 </aside>
 
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+crossorigin="anonymous"></script>
+
 <script>
 (function(){
-  var $ = function(id){ return document.getElementById(id); };
-  var acList = $('ac-list');
-  var search = $('search');
-  var memo = $('memo');
+  const $ = id => document.getElementById(id);
+  const NL = "\n";
 
-  // Use browser language; normalize to 2-letter, but we will auto-fallback if provider rejects it.
-  var lang = ((navigator.language||'en').split('-')[0]) || 'en';
+  let reverseModel = null;
+  const acList = $('ac-list');
+  const search = $('search');
+  const memo = $('memo');
+  const revStatus = $('revStatus');
+  const editToggle = $('editToggle');
+  const lang = (navigator.language||'en').split('-')[0];
 
-  var reverseModel = null;
-  var NL = '\u000A'; // explicit newline char code
+  // Map
+  const map = L.map('map');
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {maxZoom:19, attribution:"\\u00A9 OpenStreetMap contributors"}).addTo(map);
+  const start=[51.842,5.852];
+  map.setView(start,12);
+  const marker=L.marker(start,{draggable:true}).addTo(map);
 
-  // Map (compact), click to drop pin
-  var map = L.map('map');
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '\\u00A9 OpenStreetMap contributors'}).addTo(map);
-  var start = [51.842, 5.852]; // Nijmegen
-  map.setView(start, 12);
-  var marker = L.marker(start, {draggable:true}).addTo(map);
+  function setCoords(lat,lon){ $('lat').value=(+lat).toFixed(6); $('lon').value=(+lon).toFixed(6); }
+  marker.on('dragend',e=>{ const p=e.target.getLatLng(); setCoords(p.lat,p.lng); });
+  map.on('click',e=>{ marker.setLatLng(e.latlng); setCoords(e.latlng.lat,e.latlng.lng); });
 
-  function setCoords(lat, lon){ $('lat').value = (+lat).toFixed(6); $('lon').value = (+lon).toFixed(6); }
-  marker.on('dragend', function(e){ var pos = e.target.getLatLng(); setCoords(pos.lat, pos.lng); });
-  map.on('click', function(e){ marker.setLatLng(e.latlng); setCoords(e.latlng.lat, e.latlng.lng); });
+  // Field locking
+  function setFieldLockState(locked){
+    const ids=['street','houseNo','city','postal','region','country','cc','district'];
+    ids.forEach(id=>{
+      const el=$(id); if(!el) return;
+      el.readOnly = locked;
+      el.classList.toggle('readonly',locked);
+    });
+    ['houseSuffix','line2'].forEach(id=>{
+      const el=$(id); if(!el) return;
+      el.readOnly=false;
+      el.classList.remove('readonly');
+    });
+  }
+  editToggle.addEventListener('change',e => setFieldLockState(!e.target.checked));
 
-  // --------- Hardened Photon search with retries on 400 ----------
-  async function tryPhoton(url){
-    try {
-      var res = await fetch(url, { headers: { 'Accept':'application/json' } });
-      if(!res.ok) return { ok:false, status: res.status, data: { features: [] } };
-      var data = await res.json();
-      return { ok:true, status: 200, data: data || { features: [] } };
-    } catch(e) {
-      return { ok:false, status: 0, data: { features: [] } };
+  // Inline label highlight toggling (never changes base label text)
+  const LBL = {
+    city:   { city: $('lbl-city-city'), locality: $('lbl-city-locality') },
+    region: { region: $('lbl-region-region'), province: $('lbl-region-province'), state: $('lbl-region-state') },
+    dist:   { muni: $('lbl-district-muni'), district: $('lbl-district-district'), county: $('lbl-district-county') }
+  };
+  function clearHL(el){ el.classList.remove('hl'); }
+  function setHL(el){ el.classList.add('hl'); }
+  function resetHighlights() {
+    // Reset all to normal, default highlight to first term
+    Object.values(LBL.city).forEach(clearHL);  setHL(LBL.city.city);
+    Object.values(LBL.region).forEach(clearHL); setHL(LBL.region.region);
+    Object.values(LBL.dist).forEach(clearHL);   setHL(LBL.dist.county);
+  }
+  function highlightForCountry(cc) {
+    resetHighlights();
+    const C = (cc||'').toUpperCase();
+    switch (C) {
+      case 'US':
+        setHL(LBL.region.state);
+        setHL(LBL.dist.county);
+        setHL(LBL.city.city);
+        break;
+      case 'CA':
+      case 'NL':
+        setHL(LBL.region.province);
+        setHL(LBL.city.city);
+        setHL(LBL.dist.muni); // NL often municipality relevant
+        break;
+      case 'GB':
+        setHL(LBL.region.district); // County / District hybrid – highlight 'District' span
+        setHL(LBL.dist.county);
+        setHL(LBL.city.city);
+        break;
+      case 'FR':
+        setHL(LBL.region.region);
+        setHL(LBL.dist.district);
+        setHL(LBL.city.city);
+        break;
+      default:
+        setHL(LBL.region.region);
+        setHL(LBL.dist.district);
+        setHL(LBL.city.locality);
     }
   }
 
+  // Fetch wrapper
+  async function tryPhoton(url){
+    try {
+      const r = await fetch(url, {headers:{'Accept':'application/json'}});
+      if(!r.ok) return {ok:false, data:{features:[]}};
+      const d = await r.json();
+      return {ok:true, data:d||{features:[]}};
+    } catch { return {ok:false, data:{features:[]}}; }
+  }
+
+  // Autocomplete search with 400 mitigation
   async function photonSearch(q){
-    if(!q || q.trim().length < 3) return { features: [] };
+    if(!q || q.trim().length < 3) return {features:[]};
     q = q.trim();
 
-    // Attempt 1: with browser lang
-    var url1 = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(q) + '&limit=8&lang=' + encodeURIComponent(lang);
-    var r1 = await tryPhoton(url1);
-    if (r1.ok) return r1.data;
+    // Strategy: quoted query (handles space+number), then quoted no-lang, then normalized, then en
+    const quoted = `"${q}"`;
+    const normalized = q.replace(/(\\d+)\\s+([A-Za-z])/g, "$1$2"); // "narcis 47" -> "narcis47"
+    let url, r;
 
-    // Attempt 2: without lang (some language codes can trip a 400)
-    var url2 = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(q) + '&limit=8';
-    var r2 = await tryPhoton(url2);
-    if (r2.ok) return r2.data;
+    url = `https://photon.komoot.io/api/?q=${encodeURIComponent(quoted)}&limit=8&lang=${encodeURIComponent(lang)}`;
+    r = await tryPhoton(url); if (r.ok) return r.data;
 
-    // Attempt 3: force English
-    var url3 = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(q) + '&limit=8&lang=en';
-    var r3 = await tryPhoton(url3);
-    if (r3.ok) return r3.data;
+    url = `https://photon.komoot.io/api/?q=${encodeURIComponent(quoted)}&limit=8`;
+    r = await tryPhoton(url); if (r.ok) return r.data;
 
-    // Give up gracefully
-    return { features: [] };
+    url = `https://photon.komoot.io/api/?q=${encodeURIComponent(normalized)}&limit=8&lang=${encodeURIComponent(lang)}`;
+    r = await tryPhoton(url); if (r.ok) return r.data;
+
+    url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lang=en`;
+    r = await tryPhoton(url); if (r.ok) return r.data;
+
+    return {features:[]};
   }
 
   async function photonReverse(lat,lon){
-    // Reverse is usually fine with lang, but we mirror the same recovery
-    var base = 'https://photon.komoot.io/reverse?lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lon);
-    var r1 = await tryPhoton(base + '&lang=' + encodeURIComponent(lang));
-    if (r1.ok) return r1.data;
+    const base = `https://photon.komoot.io/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+    let r = await tryPhoton(base + `&lang=${encodeURIComponent(lang)}`); if (r.ok) return r.data;
+    r = await tryPhoton(base); if (r.ok) return r.data;
+    r = await tryPhoton(base + `&lang=en`); if (r.ok) return r.data;
+    return {features:[]};
+  }
 
-    var r2 = await tryPhoton(base);
-    if (r2.ok) return r2.data;
+  function primaryCity(p){ return p.city || p.town || p.village || p.hamlet || ""; }
 
-    var r3 = await tryPhoton(base + '&lang=en');
-    if (r3.ok) return r3.data;
+  // House number: '123A-1' -> { num:'123', suffix:'A-1' }
+  function splitHouseNo(raw){
+    raw = String(raw||"").trim();
+    const m = raw.match(/^(\\d+)(.*)$/);
+    return m ? { num:m[1], suffix:(m[2]||"").trim() } : { num:raw, suffix:"" };
+  }
 
-    return { features: [] };
+  function combineLine1(){
+    const s = $('street').value.trim();
+    const n = $('houseNo').value.trim();
+    const suf = $('houseSuffix').value.trim();
+    return [s, [n, suf].filter(Boolean).join('')].filter(Boolean).join(' ');
+  }
+
+  function formatSuggestion(p){
+    const cc = (p.countrycode||"").toUpperCase();
+    const street = p.street || p.road || "";
+    const hn = splitHouseNo(p.housenumber||"");
+    const city = primaryCity(p);
+    const state = p.state || p.region || p.province || "";
+
+    let left = street;
+    if(hn.num){ left = street ? (street + " " + hn.num + (hn.suffix||"")) : (hn.num + (hn.suffix||"")); }
+
+    if(cc==='NL') return [left, city, cc].filter(Boolean).join(', ');
+    if(cc==='US') return [(hn.num ? (hn.num + (hn.suffix||'') + ' ' + street) : street), city, state, cc].filter(Boolean).join(', ');
+    if(cc==='GB') return [(hn.num ? (hn.num + (hn.suffix||'') + ' ' + street) : street), city, cc].filter(Boolean).join(', ');
+    return [left||p.name||'', city, state, cc].filter(Boolean).join(', ');
   }
 
   function fillFromFeature(f){
-    var p = (f && f.properties) ? f.properties : {}; var coords = (f && f.geometry && f.geometry.coordinates) ? f.geometry.coordinates : [];
-    $('line1').value = [p.housenumber, p.street].filter(Boolean).join(' ');
+    const p = (f && f.properties) ? f.properties : {};
+    const coords = (f && f.geometry && f.geometry.coordinates) ? f.geometry.coordinates : [];
+    const hn = splitHouseNo(p.housenumber||'');
+
+    $('street').value = p.street || p.road || '';
+    $('houseNo').value = hn.num || '';
+    $('houseSuffix').value = hn.suffix || '';
     $('line2').value = '';
-    $('city').value = p.city || p.town || p.village || '';
+    $('city').value = primaryCity(p);
     $('district').value = p.county || '';
     $('region').value = p.state || '';
     $('postal').value = p.postcode || '';
     $('country').value = p.country || '';
     $('cc').value = (p.countrycode || '').toUpperCase();
-    if(coords.length === 2){ var lon = coords[0], lat = coords[1]; marker.setLatLng([lat, lon]); map.setView([lat, lon], 16); setCoords(lat, lon); }
+
+    highlightForCountry($('cc').value);
+
+    if(coords.length === 2){
+      const [lon, lat] = coords;
+      marker.setLatLng([lat, lon]); map.setView([lat, lon], 16); setCoords(lat, lon);
+    }
+    setFieldLockState(true); editToggle.checked = false;
   }
 
-  function hideAC(){ acList.hidden = true; acList.innerHTML=''; search.setAttribute('aria-expanded', 'false'); }
-  function buildItem(label){ var div = document.createElement('div'); div.className='autocomplete-item'; div.setAttribute('role','option'); div.textContent = label || '(unknown)'; return div; }
+  function hideAC(){ acList.hidden = true; acList.innerHTML=''; search.setAttribute('aria-expanded','false'); }
+  function buildItem(label, sub){
+    const d = document.createElement('div'); d.className='autocomplete-item';
+    d.innerHTML = label + (sub ? `<div class="autocomplete-meta">${sub}</div>` : '');
+    return d;
+  }
 
-  search.addEventListener('input', async function(e){
-    var q = e.target.value; if(!q || q.trim().length < 3){ hideAC(); return; }
-    var data = await photonSearch(q); acList.innerHTML='';
-    (data.features || []).forEach(function(f){
-      var p = f.properties || {}; var label = p.name || [p.housenumber, p.street, p.city].filter(Boolean).join(' ');
-      var div = buildItem(label); div.onclick = function(){ fillFromFeature(f); hideAC(); buildPostalMemo(); }; acList.appendChild(div);
+  // Rule B: ALWAYS set search to chosen label
+  search.addEventListener('input', async (e)=>{
+    const q = e.target.value; if(!q || q.trim().length < 3){ hideAC(); return; }
+    const data = await photonSearch(q); acList.innerHTML='';
+    (data.features || []).forEach((f)=>{
+      const p = f.properties || {}; const label = formatSuggestion(p); const sub = p.country || '';
+      const d = buildItem(label, sub);
+      d.onclick = function(){
+        fillFromFeature(f);
+        search.value = label;
+        hideAC();
+        buildPostalMemo();
+      };
+      acList.appendChild(d);
     });
     acList.hidden = !(data.features||[]).length; search.setAttribute('aria-expanded', String(!acList.hidden));
   });
-  document.addEventListener('click', function(e){ if(!acList.contains(e.target) && e.target !== search) hideAC(); });
+  document.addEventListener('click', (e)=>{ if(!acList.contains(e.target) && e.target !== search) hideAC(); });
 
-  function buildPostalMemo(){
-    var cc = ($('cc').value||'').toUpperCase();
-    var line1 = $('line1').value; var line2 = $('line2').value; var city = $('city').value; var district = $('district').value; var region = $('region').value; var postal = $('postal').value; var country = $('country').value;
-    var arr;
-    if(cc==='US' || cc==='CA'){
-      arr = [line1, line2, city + (district? ', ' + district : '') + ', ' + region + ' ' + postal, country];
-    } else if(cc==='GB'){
-      arr = [line1, line2, city, (district||region), postal, country];
-    } else if(cc==='NL' || cc==='FR' || cc==='BE'){
-      arr = [line1, line2, postal + ' ' + city, country];
-    } else {
-      arr = [line1, line2, postal + ' ' + city, region, country];
-    }
-    memo.value = arr.filter(Boolean).join(NL).trim(); // guaranteed explicit newline
+  // Reverse preview
+  function formatReversePreview(p){
+    const hn = splitHouseNo(p.housenumber || '');
+    const line1 = [p.street || p.road || '', (hn.num ? hn.num + (hn.suffix||'') : '')].filter(Boolean).join(' ');
+    const line2 = [p.postcode || '', primaryCity(p)].filter(Boolean).join(' ');
+    const line3 = p.state || p.county || '';
+    const line4 = p.country || (p.countrycode||'').toUpperCase();
+
+    highlightForCountry((p.countrycode||'').toUpperCase());
+    return [line1, line2, line3, line4].filter(Boolean).join(NL);
   }
 
-  $('reverse').addEventListener('click', async function(){
-    var lat = $('lat').value, lon = $('lon').value; if(!lat || !lon) return;
-    var data = await photonReverse(lat, lon); var f = (data.features||[])[0]; if(!f) return;
-    reverseModel = f; $('preview').value = (f.properties && f.properties.name) ? f.properties.name : [f.properties && f.properties.housenumber, f.properties && f.properties.street, f.properties && f.properties.city].filter(Boolean).join(' ');
+  function setRevStatus(text, busy){
+    revStatus.textContent = text || '';
+    revStatus.classList.toggle('status-busy', !!busy);
+    revStatus.classList.toggle('status-ok', !busy && !!text);
+  }
+
+  $('reverse').addEventListener('click', async ()=>{
+    const lat = $('lat').value, lon = $('lon').value; if(!lat || !lon) return;
+    $('preview').value = 'Reverse geocoding…'; $('preview').style.fontStyle = 'italic';
+    $('apply').disabled = true; setRevStatus('Working…', true);
+
+    const data = await photonReverse(lat, lon); const f = (data.features||[])[0];
+    $('preview').style.fontStyle = ''; setRevStatus(f ? 'Ready' : '', false);
+
+    if(!f){ $('preview').value = 'No result.'; $('rawJson').textContent = ''; return; }
+
+    reverseModel = f;
+    $('preview').value = formatReversePreview(f.properties || {});
     $('apply').disabled = false;
+    try { $('rawJson').textContent = JSON.stringify(f, null, 2); } catch { $('rawJson').textContent = ''; }
   });
-  $('apply').addEventListener('click', function(){ if(!reverseModel) return; fillFromFeature(reverseModel); buildPostalMemo(); $('apply').disabled = true; $('preview').value = ''; });
+
+  $('apply').addEventListener('click', ()=>{
+    if(!reverseModel) return;
+    fillFromFeature(reverseModel);
+    buildPostalMemo();
+    const pseudo = {
+      countrycode: ($('cc').value||'').toLowerCase(),
+      street: $('street').value,
+      housenumber: $('houseNo').value + ($('houseSuffix').value||''),
+      city: $('city').value,
+      state: $('region').value,
+      region: $('region').value
+    };
+    search.value = formatSuggestion(pseudo);
+    $('apply').disabled = true; $('preview').value = '';
+  });
+
+  // Validation (minimal blocking, non-blocking UI)
+  const F = id => $(id).value.trim();
+  function clearFieldState(list){
+    list.forEach(id=>{
+      const el=$(id); if(!el) return;
+      el.classList.remove('error');
+      const m = $('msg-'+id); if(m){ m.textContent=''; m.className='msg'; }
+    });
+    $('validationSummary').style.display='none';
+    $('validationList').innerHTML='';
+  }
+  function addMsg(id,text,kind='warn'){
+    const el=$(id); if(!el)return;
+    if(kind==='error') el.classList.add('error');
+    const m=$('msg-'+id); if(m){ m.textContent = text; m.className = 'msg ' + (kind==='warn'?'warn':'error'); }
+  }
+  function summary(items){
+    if(!items.length) return;
+    const box=$('validationSummary'), list=$('validationList');
+    box.style.display='block'; list.innerHTML='';
+    items.forEach(t=>{ const li=document.createElement('li'); li.textContent=t; list.appendChild(li); });
+  }
+  const re = {
+    NL:/^[0-9]{4}\s?[A-Z]{2}$/i, BE:/^[0-9]{4}$/, FR:/^[0-9]{5}$/, DE:/^[0-9]{5}$/,
+    IT:/^[0-9]{5}$/, ES:/^[0-9]{5}$/, US:/^\d{5}(-\d{4})?$/, CA:/^[A-Za-z]\d[A-Za-z]\s?\d[A-Za-z]\d$/,
+    GB:/^([Gg][Ii][Rr] 0[Aa]{2})|((([A-Za-z][0-9]{1,2})|(([A-Za-z][A-Ha-hJ-Yj-y][0-9]{1,2})|(([A-Za-z][0-9][A-Za-z])|([A-Za-z][A-Ha-hJ-Yj-y][0-9]?[A-Za-z]))))\s?[0-9][A-Za-z]{2})$/
+  };
+  function validateAddress(){
+    clearFieldState(['street','houseNo','city','postal','country','cc','lat','lon']);
+    const warns=[];
+    const cc=F('cc').toUpperCase(), street=F('street'), city=F('city'), country=F('country'), postal=F('postal'), lat=F('lat'), lon=F('lon');
+
+    if(!street){ warns.push('Street empty (OK for campuses/rural).'); addMsg('street','Empty (best effort).'); }
+    if(!city){   warns.push('City empty.'); addMsg('city','City empty.'); }
+    if(!country){warns.push('Country / Region empty.'); addMsg('country','Empty.'); }
+    if(!cc){     warns.push('Country code empty.'); addMsg('cc','Empty.'); }
+    if(postal && cc && re[cc] && !re[cc].test(postal)){ warns.push('Postal code invalid for '+cc+'.'); addMsg('postal','Invalid pattern.'); }
+    const latN=+lat, lonN=+lon;
+    if(lat && (isNaN(latN)||latN<-90||latN>90)) addMsg('lat','Out of range.');
+    if(lon && (isNaN(lonN)||lonN<-180||lonN>180)) addMsg('lon','Out of range.');
+    summary(warns);
+  }
+
+  // Postal memo formatting
+  function buildPostalMemo(){
+    const cc=F('cc').toUpperCase();
+    const line1=combineLine1(), add2=F('line2'), city=F('city'), district=F('district'), region=F('region'), postal=F('postal'), country=F('country'), no=F('houseNo'), street=F('street'), suf=F('houseSuffix');
+    let lines=[];
+    if(['NL','DE','FR','BE','ES','IT'].includes(cc)){
+      lines=[line1,(postal+' '+city).trim(),country];
+    } else if(cc==='GB'){
+      lines=[line1,city,postal,country];
+    } else if(cc==='US' || cc==='CA'){
+      const first=(no ? (no+(suf||'')+' '+street) : street).trim();
+      lines=[first,(city+(district?(', '+district):'')+', '+region+' '+postal).trim(),country];
+    } else {
+      lines=[line1,(postal+' '+city).trim(),region,country];
+    }
+    if(add2) lines.splice(1,0,add2);
+    memo.value = lines.filter(Boolean).join(NL).trim();
+  }
+
+  // Wire buttons (Option B: Validate doesn't format; Generate formats regardless)
+  $('validate').addEventListener('click', validateAddress);
   $('format').addEventListener('click', buildPostalMemo);
-  $('validate').addEventListener('click', buildPostalMemo);
+
+  // Init
+  setFieldLockState(false);
+  highlightForCountry($('cc').value);
 })();
 </script>
 </body>
