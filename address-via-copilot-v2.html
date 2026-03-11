@@ -1,10 +1,14 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Planon - Address Entry & Validation (Compact Map v1.3.1)</title>
+<title>Planon - Address Entry & Validation (Compact Map v1.3.2)</title>
+
+<!-- 1) Embedded favicon (inline, no external request) -->
+<link rel="icon" type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' ry='12' fill='%23003B73'/%3E%3Ctext x='50%25' y='50%25' dy='.35em' text-anchor='middle' font-family='Segoe UI, Roboto, Arial, sans-serif' font-size='34' font-weight='700' fill='%2300A0E3'%3EP%3C/text%3E%3C/svg%3E" />
+
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
 <style>
 :root { --p-blue:#003B73; --p-cyan:#00A0E3; --p-bg:#f5f8fb; --p-text:#0e1b2a; --p-border:#d9e1ea; --p-muted:#6a7b8c; --shadow:0 6px 18px rgba(0,0,0,.08); --radius:10px; --font:ui-sans-serif, system-ui, Segoe UI, Roboto, Arial; }
@@ -108,94 +112,12 @@ button.primary{background:var(--p-blue);color:#fff;border-color:var(--p-blue)}
   var acList = $('ac-list');
   var search = $('search');
   var memo = $('memo');
+
+  // Use browser language; normalize to 2-letter, but we will auto-fallback if provider rejects it.
   var lang = ((navigator.language||'en').split('-')[0]) || 'en';
+
   var reverseModel = null;
-  var NL = '\n'; // explicit newline char code
+  var NL = '\\u000A'; // explicit newline char code
 
   // Map (compact), click to drop pin
   var map = L.map('map');
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap contributors'}).addTo(map);
-  var start = [51.842, 5.852]; // Nijmegen
-  map.setView(start, 12);
-  var marker = L.marker(start, {draggable:true}).addTo(map);
-
-  function setCoords(lat, lon){ $('lat').value = (+lat).toFixed(6); $('lon').value = (+lon).toFixed(6); }
-  marker.on('dragend', function(e){ var pos = e.target.getLatLng(); setCoords(pos.lat, pos.lng); });
-  map.on('click', function(e){ marker.setLatLng(e.latlng); setCoords(e.latlng.lat, e.latlng.lng); });
-
-  // Provider: Photon (Komoot) — guarded
-  async function photonSearch(q){
-    if(!q || q.trim().length < 3) return {features:[]};
-    var url = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(q.trim()) + '&limit=8&lang=' + encodeURIComponent(lang);
-    try {
-      var res = await fetch(url, {headers:{'Accept':'application/json'}});
-      if(!res.ok) return {features:[]};
-      return await res.json();
-    } catch (e) { return {features:[]}; }
-  }
-  async function photonReverse(lat,lon){
-    var url = 'https://photon.komoot.io/reverse?lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lon) + '&lang=' + encodeURIComponent(lang);
-    try {
-      var res = await fetch(url, {headers:{'Accept':'application/json'}});
-      if(!res.ok) return {features:[]};
-      return await res.json();
-    } catch (e) { return {features:[]}; }
-  }
-
-  function fillFromFeature(f){
-    var p = (f && f.properties) ? f.properties : {}; var coords = (f && f.geometry && f.geometry.coordinates) ? f.geometry.coordinates : [];
-    $('line1').value = [p.housenumber, p.street].filter(Boolean).join(' ');
-    $('line2').value = '';
-    $('city').value = p.city || p.town || p.village || '';
-    $('district').value = p.county || '';
-    $('region').value = p.state || '';
-    $('postal').value = p.postcode || '';
-    $('country').value = p.country || '';
-    $('cc').value = (p.countrycode || '').toUpperCase();
-    if(coords.length === 2){ var lon = coords[0], lat = coords[1]; marker.setLatLng([lat, lon]); map.setView([lat, lon], 16); setCoords(lat, lon); }
-  }
-
-  function hideAC(){ acList.hidden = true; acList.innerHTML=''; search.setAttribute('aria-expanded', 'false'); }
-  function buildItem(label){ var div = document.createElement('div'); div.className='autocomplete-item'; div.setAttribute('role','option'); div.textContent = label || '(unknown)'; return div; }
-
-  search.addEventListener('input', async function(e){
-    var q = e.target.value; if(!q || q.trim().length < 3){ hideAC(); return; }
-    var data = await photonSearch(q); acList.innerHTML='';
-    (data.features || []).forEach(function(f){
-      var p = f.properties || {}; var label = p.name || [p.housenumber, p.street, p.city].filter(Boolean).join(' ');
-      var div = buildItem(label); div.onclick = function(){ fillFromFeature(f); hideAC(); buildPostalMemo(); }; acList.appendChild(div);
-    });
-    acList.hidden = !(data.features||[]).length; search.setAttribute('aria-expanded', String(!acList.hidden));
-  });
-  document.addEventListener('click', function(e){ if(!acList.contains(e.target) && e.target !== search) hideAC(); });
-
-  function buildPostalMemo(){
-    var cc = ($('cc').value||'').toUpperCase();
-    var line1 = $('line1').value; var line2 = $('line2').value; var city = $('city').value; var district = $('district').value; var region = $('region').value; var postal = $('postal').value; var country = $('country').value;
-    var arr;
-    if(cc==='US' || cc==='CA'){
-      arr = [line1, line2, city + (district? ', ' + district : '') + ', ' + region + ' ' + postal, country];
-    } else if(cc==='GB'){
-      arr = [line1, line2, city, (district||region), postal, country];
-    } else if(cc==='NL' || cc==='FR' || cc==='BE'){
-      arr = [line1, line2, postal + ' ' + city, country];
-    } else {
-      arr = [line1, line2, postal + ' ' + city, region, country];
-    }
-    // Use explicit char code for newline to avoid accidental literal newlines
-    memo.value = arr.filter(Boolean).join(NL).trim();
-  }
-
-  $('reverse').addEventListener('click', async function(){
-    var lat = $('lat').value, lon = $('lon').value; if(!lat || !lon) return;
-    var data = await photonReverse(lat, lon); var f = (data.features||[])[0]; if(!f) return;
-    reverseModel = f; $('preview').value = (f.properties && f.properties.name) ? f.properties.name : [f.properties && f.properties.housenumber, f.properties && f.properties.street, f.properties && f.properties.city].filter(Boolean).join(' ');
-    $('apply').disabled = false;
-  });
-  $('apply').addEventListener('click', function(){ if(!reverseModel) return; fillFromFeature(reverseModel); buildPostalMemo(); $('apply').disabled = true; $('preview').value = ''; });
-  $('format').addEventListener('click', buildPostalMemo);
-  $('validate').addEventListener('click', buildPostalMemo);
-})();
-</script>
-</body>
-</html>
