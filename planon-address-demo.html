@@ -352,16 +352,36 @@
       el.acList.hidden = true; el.acList.replaceChildren();
     }
 
-    const onSearchInput = debounce(async ()=>{
+    const onSearchInput = debounce(async () => {
       const q = el.acInput.value.trim();
-      if(!q){ el.acList.hidden = true; el.acList.replaceChildren(); return; }
-      try{
-        const data = await photon.search(q);
-        const items = (data.features || []).slice(0,8).map((f,i)=>buildSuggestionItem(f,i));
-        el.acList.replaceChildren(...items);
-        el.acList.hidden = items.length === 0;
-      }catch(e){ console.error(e); el.acList.hidden = true; }
-    }, 250);
+  
+      // Require at least 2 characters to avoid Photon 400 errors
+      if (q.length < 2) {
+          el.acList.hidden = true;
+          el.acList.replaceChildren();
+          return;
+      }
+  
+      try {
+          const lang = locale.split('-')[0]; // Photon expects "nl", "en", etc.
+          const url = new URL('https://photon.komoot.io/api/');
+          url.searchParams.set('q', q);
+          url.searchParams.set('lang', lang);
+          url.searchParams.set('limit', '8');
+  
+          const res = await fetch(url.toString());
+          if (!res.ok) throw new Error(`Photon bad response: ${res.status}`);
+          
+          const data = await res.json();
+          const items = (data.features || []).slice(0, 8).map((f, i) => buildSuggestionItem(f, i));
+          el.acList.replaceChildren(...items);
+          el.acList.hidden = items.length === 0;
+      } catch (e) {
+          console.error('Autocomplete error:', e);
+          el.acList.hidden = true;
+      }
+  }, 250);
+
 
     el.acInput.addEventListener('input', onSearchInput);
     document.addEventListener('click', (e)=>{
