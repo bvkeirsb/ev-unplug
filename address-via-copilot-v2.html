@@ -121,3 +121,118 @@ button.primary{background:var(--p-blue);color:#fff;border-color:var(--p-blue)}
 
   // Map (compact), click to drop pin
   var map = L.map('map');
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '\\u00A9 OpenStreetMap contributors'}).addTo(map);
+  var start = [51.842, 5.852]; // Nijmegen
+  map.setView(start, 12);
+  var marker = L.marker(start, {draggable:true}).addTo(map);
+
+  function setCoords(lat, lon){ $('lat').value = (+lat).toFixed(6); $('lon').value = (+lon).toFixed(6); }
+  marker.on('dragend', function(e){ var pos = e.target.getLatLng(); setCoords(pos.lat, pos.lng); });
+  map.on('click', function(e){ marker.setLatLng(e.latlng); setCoords(e.latlng.lat, e.latlng.lng); });
+
+  // --------- Hardened Photon search with retries on 400 ----------
+  async function tryPhoton(url){
+    try {
+      var res = await fetch(url, { headers: { 'Accept':'application/json' } });
+      if(!res.ok) return { ok:false, status: res.status, data: { features: [] } };
+      var data = await res.json();
+      return { ok:true, status: 200, data: data || { features: [] } };
+    } catch(e) {
+      return { ok:false, status: 0, data: { features: [] } };
+    }
+  }
+
+  async function photonSearch(q){
+    if(!q || q.trim().length < 3) return { features: [] };
+    q = q.trim();
+
+    // Attempt 1: with browser lang
+    var url1 = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(q) + '&limit=8&lang=' + encodeURIComponent(lang);
+    var r1 = await tryPhoton(url1);
+    if (r1.ok) return r1.data;
+
+    // Attempt 2: without lang (some language codes can trip a 400)
+    var url2 = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(q) + '&limit=8';
+    var r2 = await tryPhoton(url2);
+    if (r2.ok) return r2.data;
+
+    // Attempt 3: force English
+    var url3 = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(q) + '&limit=8&lang=en';
+    var r3 = await tryPhoton(url3);
+    if (r3.ok) return r3.data;
+
+    // Give up gracefully
+    return { features: [] };
+  }
+
+  async function photonReverse(lat,lon){
+    // Reverse is usually fine with lang, but we mirror the same recovery
+    var base = 'https://photon.komoot.io/reverse?lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lon);
+    var r1 = await tryPhoton(base + '&lang=' + encodeURIComponent(lang));
+    if (r1.ok) return r1.data;
+
+    var r2 = await tryPhoton(base);
+    if (r2.ok) return r2.data;
+
+    var r3 = await tryPhoton(base + '&lang=en');
+    if (r3.ok) return r3.data;
+
+    return { features: [] };
+  }
+
+  function fillFromFeature(f){
+    var p = (f && f.properties) ? f.properties : {}; var coords = (f && f.geometry && f.geometry.coordinates) ? f.geometry.coordinates : [];
+    $('line1').value = [p.housenumber, p.street].filter(Boolean).join(' ');
+    $('line2').value = '';
+    $('city').value = p.city || p.town || p.village || '';
+    $('district').value = p.county || '';
+    $('region').value = p.state || '';
+    $('postal').value = p.postcode || '';
+    $('country').value = p.country || '';
+    $('cc').value = (p.countrycode || '').toUpperCase();
+    if(coords.length === 2){ var lon = coords[0], lat = coords[1]; marker.setLatLng([lat, lon]); map.setView([lat, lon], 16); setCoords(lat, lon); }
+  }
+
+  function hideAC(){ acList.hidden = true; acList.innerHTML=''; search.setAttribute('aria-expanded', 'false'); }
+  function buildItem(label){ var div = document.createElement('div'); div.className='autocomplete-item'; div.setAttribute('role','option'); div.textContent = label || '(unknown)'; return div; }
+
+  search.addEventListener('input', async function(e){
+    var q = e.target.value; if(!q || q.trim().length < 3){ hideAC(); return; }
+    var data = await photonSearch(q); acList.innerHTML='';
+    (data.features || []).forEach(function(f){
+      var p = f.properties || {}; var label = p.name || [p.housenumber, p.street, p.city].filter(Boolean).join(' ');
+      var div = buildItem(label); div.onclick = function(){ fillFromFeature(f); hideAC(); buildPostalMemo(); }; acList.appendChild(div);
+    });
+    acList.hidden = !(data.features||[]).length; search.setAttribute('aria-expanded', String(!acList.hidden));
+  });
+  document.addEventListener('click', function(e){ if(!acList.contains(e.target) && e.target !== search) hideAC(); });
+
+  function buildPostalMemo(){
+    var cc = ($('cc').value||'').toUpperCase();
+    var line1 = $('line1').value; var line2 = $('line2').value; var city = $('city').value; var district = $('district').value; var region = $('region').value; var postal = $('postal').value; var country = $('country').value;
+    var arr;
+    if(cc==='US' || cc==='CA'){
+      arr = [line1, line2, city + (district? ', ' + district : '') + ', ' + region + ' ' + postal, country];
+    } else if(cc==='GB'){
+      arr = [line1, line2, city, (district||region), postal, country];
+    } else if(cc==='NL' || cc==='FR' || cc==='BE'){
+      arr = [line1, line2, postal + ' ' + city, country];
+    } else {
+      arr = [line1, line2, postal + ' ' + city, region, country];
+    }
+    memo.value = arr.filter(Boolean).join(NL).trim(); // guaranteed explicit newline
+  }
+
+  $('reverse').addEventListener('click', async function(){
+    var lat = $('lat').value, lon = $('lon').value; if(!lat || !lon) return;
+    var data = await photonReverse(lat, lon); var f = (data.features||[])[0]; if(!f) return;
+    reverseModel = f; $('preview').value = (f.properties && f.properties.name) ? f.properties.name : [f.properties && f.properties.housenumber, f.properties && f.properties.street, f.properties && f.properties.city].filter(Boolean).join(' ');
+    $('apply').disabled = false;
+  });
+  $('apply').addEventListener('click', function(){ if(!reverseModel) return; fillFromFeature(reverseModel); buildPostalMemo(); $('apply').disabled = true; $('preview').value = ''; });
+  $('format').addEventListener('click', buildPostalMemo);
+  $('validate').addEventListener('click', buildPostalMemo);
+})();
+</script>
+</body>
+</html>
