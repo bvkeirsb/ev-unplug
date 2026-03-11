@@ -4,13 +4,10 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Planon – Address Entry & Validation (Compact Map v1.2)</title>
+<title>Planon - Address Entry & Validation (Compact Map v1.3)</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
 <style>
-:root {
-  --p-blue:#003B73; --p-cyan:#00A0E3; --p-bg:#f5f8fb; --p-text:#0e1b2a; --p-border:#d9e1ea; --p-muted:#6a7b8c;
-  --shadow:0 6px 18px rgba(0,0,0,.08); --radius:10px; --font:ui-sans-serif, system-ui, Segoe UI, Roboto, Arial;
-}
+:root { --p-blue:#003B73; --p-cyan:#00A0E3; --p-bg:#f5f8fb; --p-text:#0e1b2a; --p-border:#d9e1ea; --p-muted:#6a7b8c; --shadow:0 6px 18px rgba(0,0,0,.08); --radius:10px; --font:ui-sans-serif, system-ui, Segoe UI, Roboto, Arial; }
 *{box-sizing:border-box}
 body{margin:0;font-family:var(--font);background:var(--p-bg);color:var(--p-text)}
 header{background:linear-gradient(90deg,var(--p-blue),#001d3d);color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px}
@@ -35,39 +32,37 @@ button{padding:8px 12px;border-radius:8px;border:1px solid var(--p-border);curso
 button.primary{background:var(--p-blue);color:#fff;border-color:var(--p-blue)}
 .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .tip{margin-left:auto;font-size:12px;color:var(--p-muted)}
-.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 </style>
 </head>
 <body>
-<header><div class="logo" aria-hidden="true">P</div><h2>Planon – Address Entry & Validation</h2></header>
+<header><div class="logo" aria-hidden="true">P</div><h2>Planon - Address Entry & Validation</h2></header>
 <div class="container">
 
-<!-- LEFT: Address-first (bigger) -->
 <section class="panel" aria-labelledby="addr-title">
   <div class="toolbar" id="addr-title">Address details & memo</div>
   <div class="content">
     <div class="field" style="position:relative;">
       <label for="search">Search address (start typing)</label>
-      <input id="search" placeholder="e.g. 10 Avenue des Champs-Élysées, Paris" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-owns="ac-list" />
+      <input id="search" placeholder="e.g. 10 Avenue des Champs-Elysees, Paris" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-owns="ac-list" />
       <div id="ac-list" class="autocomplete-list" role="listbox" hidden></div>
       <div class="small">Type at least 3 characters. Select a suggestion to fill the form.</div>
     </div>
 
-    <div class="field"><label for="line1">Street + Number</label><input id="line1" placeholder="e.g. 10 Avenue des Champs-Élysées" /></div>
+    <div class="field"><label for="line1">Street + Number</label><input id="line1" placeholder="e.g. 10 Avenue des Champs-Elysees" /></div>
     <div class="field"><label for="line2">Additional info</label><input id="line2" placeholder="e.g. Building, wing, floor" /></div>
 
     <div class="two">
       <div class="field"><label for="city">City / Locality</label><input id="city" placeholder="e.g. Paris" /></div>
-      <div class="field"><label for="district">Municipality / District (Admin‑2)</label><input id="district" placeholder="e.g. 8th arrondissement" /></div>
+      <div class="field"><label for="district">Municipality / District (Admin-2)</label><input id="district" placeholder="e.g. 8th arrondissement" /></div>
     </div>
     <div class="two">
-      <div class="field"><label for="region">Region / Province / State (Admin‑1)</label><input id="region" placeholder="e.g. Île‑de‑France" /></div>
+      <div class="field"><label for="region">Region / Province / State (Admin-1)</label><input id="region" placeholder="e.g. Ile-de-France" /></div>
       <div class="field"><label for="postal">Postal Code</label><input id="postal" placeholder="e.g. 75008" /></div>
     </div>
 
     <div class="two">
       <div class="field"><label for="country">Country (name)</label><input id="country" placeholder="e.g. France" /></div>
-      <div class="field"><label for="cc">Country Code (ISO 3166‑1 alpha‑2)</label><input id="cc" maxlength="2" placeholder="e.g. FR" /></div>
+      <div class="field"><label for="cc">Country Code (ISO 3166-1 alpha-2)</label><input id="cc" maxlength="2" placeholder="e.g. FR" /></div>
     </div>
 
     <div class="two">
@@ -89,11 +84,10 @@ button.primary{background:var(--p-blue);color:#fff;border-color:var(--p-blue)}
   </div>
 </section>
 
-<!-- RIGHT: Compact map/tools -->
 <aside class="panel" aria-labelledby="map-title">
   <div class="toolbar" id="map-title">Map (auxiliary)</div>
   <div class="content" style="padding-bottom:0;">
-    <div class="small" style="margin-bottom:8px;">Click the map to place a pin. Use **Reverse geocode** to preview; press **Apply** to copy to the form.</div>
+    <div class="small" style="margin-bottom:8px;">Click the map to place a pin. Use Reverse geocode to preview; press Apply to copy to the form.</div>
     <div class="actions" style="margin-bottom:8px;">
       <button id="reverse" type="button">Reverse geocode (from pin)</button>
       <button id="apply" type="button" disabled>Apply reverse result</button>
@@ -101,7 +95,7 @@ button.primary{background:var(--p-blue);color:#fff;border-color:var(--p-blue)}
   </div>
   <div id="map" role="img" aria-label="Map with draggable marker"></div>
   <div class="content" style="border-top:1px solid var(--p-border)">
-    <div class="field"><label for="preview">Reverse preview (read‑only)</label><input id="preview" readonly placeholder="No preview yet" /></div>
+    <div class="field"><label for="preview">Reverse preview (read-only)</label><input id="preview" readonly placeholder="No preview yet" /></div>
   </div>
 </aside>
 
@@ -110,11 +104,11 @@ button.primary{background:var(--p-blue);color:#fff;border-color:var(--p-blue)}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
 <script>
 (function(){
-  const $ = id => document.getElementById(id);
+  const $ = function(id){ return document.getElementById(id); };
   const acList = $('ac-list');
   const search = $('search');
   const memo = $('memo');
-  const lang = (navigator.language||'en').split('-')[0] || 'en';
+  const lang = ((navigator.language||'en').split('-')[0]) || 'en';
   let reverseModel = null;
 
   // Map (compact), click to drop pin
@@ -124,23 +118,31 @@ button.primary{background:var(--p-blue);color:#fff;border-color:var(--p-blue)}
   map.setView(start, 12);
   const marker = L.marker(start, {draggable:true}).addTo(map);
 
-  const setCoords = (lat, lon) => { $('lat').value = (+lat).toFixed(6); $('lon').value = (+lon).toFixed(6); };
-  marker.on('dragend', e => { const {lat, lng} = e.target.getLatLng(); setCoords(lat, lng); });
-  map.on('click', e => { marker.setLatLng(e.latlng); setCoords(e.latlng.lat, e.latlng.lng); });
+  function setCoords(lat, lon){ $('lat').value = (+lat).toFixed(6); $('lon').value = (+lon).toFixed(6); }
+  marker.on('dragend', function(e){ var pos = e.target.getLatLng(); setCoords(pos.lat, pos.lng); });
+  map.on('click', function(e){ marker.setLatLng(e.latlng); setCoords(e.latlng.lat, e.latlng.lng); });
 
   // Provider: Photon (Komoot) — guarded
   async function photonSearch(q){
     if(!q || q.trim().length < 3) return {features:[]};
-    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q.trim())}&limit=8&lang=${encodeURIComponent(lang)}`;
-    try { const res = await fetch(url, {headers:{'Accept':'application/json'}}); if(!res.ok) return {features:[]}; return await res.json(); } catch { return {features:[]}; }
+    const url = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(q.trim()) + '&limit=8&lang=' + encodeURIComponent(lang);
+    try {
+      const res = await fetch(url, {headers:{'Accept':'application/json'}});
+      if(!res.ok) return {features:[]};
+      return await res.json();
+    } catch (e) { return {features:[]}; }
   }
   async function photonReverse(lat,lon){
-    const url = `https://photon.komoot.io/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&lang=${encodeURIComponent(lang)}`;
-    try { const res = await fetch(url, {headers:{'Accept':'application/json'}}); if(!res.ok) return {features:[]}; return await res.json(); } catch { return {features:[]}; }
+    const url = 'https://photon.komoot.io/reverse?lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lon) + '&lang=' + encodeURIComponent(lang);
+    try {
+      const res = await fetch(url, {headers:{'Accept':'application/json'}});
+      if(!res.ok) return {features:[]};
+      return await res.json();
+    } catch (e) { return {features:[]}; }
   }
 
   function fillFromFeature(f){
-    const p = f?.properties || {}; const coords = f?.geometry?.coordinates || [];
+    const p = (f && f.properties) ? f.properties : {}; const coords = (f && f.geometry && f.geometry.coordinates) ? f.geometry.coordinates : [];
     $('line1').value = [p.housenumber, p.street].filter(Boolean).join(' ');
     $('line2').value = '';
     $('city').value = p.city || p.town || p.village || '';
@@ -149,47 +151,47 @@ button.primary{background:var(--p-blue);color:#fff;border-color:var(--p-blue)}
     $('postal').value = p.postcode || '';
     $('country').value = p.country || '';
     $('cc').value = (p.countrycode || '').toUpperCase();
-    if(coords.length === 2){ const [lon, lat] = coords; marker.setLatLng([lat, lon]); map.setView([lat, lon], 16); setCoords(lat, lon); }
+    if(coords.length === 2){ var lon = coords[0], lat = coords[1]; marker.setLatLng([lat, lon]); map.setView([lat, lon], 16); setCoords(lat, lon); }
   }
 
   function hideAC(){ acList.hidden = true; acList.innerHTML=''; search.setAttribute('aria-expanded', 'false'); }
-  function buildItem(label){ const div = document.createElement('div'); div.className='autocomplete-item'; div.setAttribute('role','option'); div.textContent = label || '(unknown)'; return div; }
+  function buildItem(label){ var div = document.createElement('div'); div.className='autocomplete-item'; div.setAttribute('role','option'); div.textContent = label || '(unknown)'; return div; }
 
-  search.addEventListener('input', async e => {
+  search.addEventListener('input', async function(e){
     const q = e.target.value; if(!q || q.trim().length < 3){ hideAC(); return; }
     const data = await photonSearch(q); acList.innerHTML='';
-    (data.features || []).forEach(f => {
+    (data.features || []).forEach(function(f){
       const p = f.properties || {}; const label = p.name || [p.housenumber, p.street, p.city].filter(Boolean).join(' ');
-      const div = buildItem(label); div.onclick = () => { fillFromFeature(f); hideAC(); buildPostalMemo(); }; acList.appendChild(div);
+      const div = buildItem(label); div.onclick = function(){ fillFromFeature(f); hideAC(); buildPostalMemo(); }; acList.appendChild(div);
     });
     acList.hidden = !(data.features||[]).length; search.setAttribute('aria-expanded', String(!acList.hidden));
   });
-  document.addEventListener('click', e => { if(!acList.contains(e.target) && e.target !== search) hideAC(); });
+  document.addEventListener('click', function(e){ if(!acList.contains(e.target) && e.target !== search) hideAC(); });
 
   function buildPostalMemo(){
     const cc = ($('cc').value||'').toUpperCase();
     const line1 = $('line1').value; const line2 = $('line2').value; const city = $('city').value; const district = $('district').value; const region = $('region').value; const postal = $('postal').value; const country = $('country').value;
-    let txt = '';
+    var arr;
     if(cc==='US' || cc==='CA'){
-      txt = [line1, line2, `${city}${district? ', '+district:''}, ${region} ${postal}`, country];
+      arr = [line1, line2, city + (district? ', ' + district : '') + ', ' + region + ' ' + postal, country];
     } else if(cc==='GB'){
-      txt = [line1, line2, city, (district||region), postal, country];
+      arr = [line1, line2, city, (district||region), postal, country];
     } else if(cc==='NL' || cc==='FR' || cc==='BE'){
-      txt = [line1, line2, `${postal} ${city}`, country];
+      arr = [line1, line2, postal + ' ' + city, country];
     } else {
-      txt = [line1, line2, `${postal} ${city}`, region, country];
+      arr = [line1, line2, postal + ' ' + city, region, country];
     }
-    memo.value = txt.filter(Boolean).join('
+    memo.value = arr.filter(Boolean).join('
 ').trim();
   }
 
-  $('reverse').addEventListener('click', async () => {
+  $('reverse').addEventListener('click', async function(){
     const lat = $('lat').value, lon = $('lon').value; if(!lat || !lon) return;
     const data = await photonReverse(lat, lon); const f = (data.features||[])[0]; if(!f) return;
-    reverseModel = f; $('preview').value = f.properties?.name || [f.properties?.housenumber, f.properties?.street, f.properties?.city].filter(Boolean).join(' ');
+    reverseModel = f; $('preview').value = (f.properties && f.properties.name) ? f.properties.name : [f.properties && f.properties.housenumber, f.properties && f.properties.street, f.properties && f.properties.city].filter(Boolean).join(' ');
     $('apply').disabled = false;
   });
-  $('apply').addEventListener('click', () => { if(!reverseModel) return; fillFromFeature(reverseModel); buildPostalMemo(); $('apply').disabled = true; $('preview').value = ''; });
+  $('apply').addEventListener('click', function(){ if(!reverseModel) return; fillFromFeature(reverseModel); buildPostalMemo(); $('apply').disabled = true; $('preview').value = ''; });
   $('format').addEventListener('click', buildPostalMemo);
   $('validate').addEventListener('click', buildPostalMemo);
 })();
