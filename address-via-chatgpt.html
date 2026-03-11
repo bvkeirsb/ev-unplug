@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planon Modern Address Entry Demo</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f5f7fa;color:#1a1a1a}
+header{background:#0f4c81;color:white;padding:14px 20px;font-size:20px;font-weight:600}
+.container{display:grid;grid-template-columns:420px 1fr;height:calc(100vh - 52px)}
+.panel{padding:20px;background:white;border-right:1px solid #dcdcdc;overflow:auto}
+.field{margin-bottom:12px}
+label{display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#444}
+input{width:100%;padding:8px;border:1px solid #cfd6e0;border-radius:4px}
+input:focus{outline:none;border-color:#0f4c81}
+#map{height:100%}
+button{background:#0f4c81;color:white;border:none;padding:8px 10px;border-radius:4px;margin-right:6px;cursor:pointer}
+button.secondary{background:#6c7a89}
+#suggestions{border:1px solid #cfd6e0;border-top:none;max-height:150px;overflow:auto}
+.suggestion{padding:6px 8px;cursor:pointer}
+.suggestion:hover{background:#eef3f9}
+.coords{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.small{font-size:11px;color:#666}
+.warning{color:#b00020;font-size:12px;margin-top:4px}
+</style>
+</head>
+<body>
+<header>Planon Address Entry Concept</header>
+<div class="container">
+
+<div class="panel">
+
+<div class="field">
+<label>Search address</label>
+<input id="search" placeholder="Start typing address..." autocomplete="off"/>
+<div id="suggestions"></div>
+<div class="small">Autocomplete via OpenStreetMap Nominatim</div>
+<div id="error" class="warning"></div>
+</div>
+
+<hr/>
+
+<div class="field"><label>Street</label><input id="street"></div>
+<div class="field"><label>House number</label><input id="housenumber"></div>
+<div class="field"><label>Postal code</label><input id="postcode"></div>
+<div class="field"><label>City</label><input id="city"></div>
+<div class="field"><label>Municipality</label><input id="municipality"></div>
+<div class="field"><label>State / Region</label><input id="state"></div>
+<div class="field"><label>Country</label><input id="country"></div>
+<div class="field"><label>Country code</label><input id="countrycode"></div>
+
+<div class="field coords">
+<div>
+<label>Latitude</label>
+<input id="lat">
+</div>
+<div>
+<label>Longitude</label>
+<input id="lon">
+</div>
+</div>
+
+<br/>
+
+<button onclick="reverseFromCoords()">Reverse geocode</button>
+<button class="secondary" onclick="clearAddress()">Clear</button>
+
+<p class="small">Marker can be dragged to adjust location without overwriting validated address.</p>
+
+</div>
+
+<div id="map"></div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+
+/* --------------------------------------------------
+Map initialization
+-------------------------------------------------- */
+
+const map=L.map('map').setView([52.1,5.1],7)
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+maxZoom:19,
+attribution:'© OpenStreetMap'
+}).addTo(map)
+
+let marker=L.marker([52.1,5.1],{draggable:true}).addTo(map)
+
+marker.on('dragend',()=>{
+const p=marker.getLatLng()
+setLatLon(p.lat,p.lng)
+})
+
+function setLatLon(lat,lon){
+document.getElementById('lat').value=parseFloat(lat).toFixed(6)
+document.getElementById('lon').value=parseFloat(lon).toFixed(6)
+}
+
+function setMarker(lat,lon){
+lat=parseFloat(lat)
+lon=parseFloat(lon)
+marker.setLatLng([lat,lon])
+map.setView([lat,lon],16)
+setLatLon(lat,lon)
+}
+
+/* --------------------------------------------------
+Search / Autocomplete
+-------------------------------------------------- */
+
+const search=document.getElementById('search')
+const suggestions=document.getElementById('suggestions')
+const errorBox=document.getElementById('error')
+
+search.addEventListener('input',async()=>{
+const q=search.value.trim()
+
+if(q.length<3){
+suggestions.innerHTML=''
+return
+}
+
+try{
+
+const url=`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(q)}`
+
+const res=await fetch(url,{headers:{'Accept':'application/json'}})
+
+if(!res.ok) throw new Error('Network response was not ok')
+
+const data=await res.json()
+
+renderSuggestions(data)
+errorBox.textContent=''
+
+}catch(err){
+
+console.warn('Address lookup failed',err)
+
+errorBox.textContent="Address lookup failed (network/CORS). Running in offline demo mode."
+
+/* Fallback demo suggestions so UI still works */
+const mock=[{
+lat:52.379189,
+lon:4.899431,
+display_name:"Dam Square, Amsterdam, Netherlands",
+address:{
+road:"Dam",
+city:"Amsterdam",
+state:"North Holland",
+postcode:"1012",
+country:"Netherlands",
+country_code:"nl"
+}
+}]
+
+renderSuggestions(mock)
+
+}
+})
+
+function renderSuggestions(data){
+
+suggestions.innerHTML=''
+
+(data||[]).slice(0,5).forEach(place=>{
+
+const div=document.createElement('div')
+
+div.className='suggestion'
+
+div.textContent=place.display_name
+
+ div.onclick=()=>selectAddress(place)
+
+suggestions.appendChild(div)
+
+})
+
+}
+
+/* --------------------------------------------------
+Address population
+-------------------------------------------------- */
+
+function selectAddress(place){
+
+suggestions.innerHTML=''
+
+if(place.display_name) search.value=place.display_name
+
+const a=place.address||{}
+
+setField('street',a.road)
+setField('housenumber',a.house_number)
+setField('postcode',a.postcode)
+setField('city',a.city||a.town||a.village)
+setField('municipality',a.municipality)
+setField('state',a.state)
+setField('country',a.country)
+setField('countrycode',(a.country_code||'').toUpperCase())
+
+if(place.lat && place.lon){
+setMarker(place.lat,place.lon)
+}
+}
+
+function setField(id,val){
+document.getElementById(id).value=val||''
+}
+
+/* --------------------------------------------------
+Reverse geocoding
+-------------------------------------------------- */
+
+async function reverseFromCoords(){
+
+const lat=document.getElementById('lat').value
+const lon=document.getElementById('lon').value
+
+if(!lat||!lon) return
+
+try{
+
+const url=`https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&lat=${lat}&lon=${lon}`
+
+const res=await fetch(url,{headers:{'Accept':'application/json'}})
+
+if(!res.ok) throw new Error('Network error')
+
+const data=await res.json()
+
+selectAddress({
+lat:lat,
+lon:lon,
+display_name:data.display_name,
+address:data.address
+})
+
+errorBox.textContent=''
+
+}catch(err){
+console.warn('Reverse geocoding failed',err)
+errorBox.textContent="Reverse geocoding failed (network/CORS). Coordinates kept." 
+}
+}
+
+/* --------------------------------------------------
+Utility
+-------------------------------------------------- */
+
+function clearAddress(){
+
+document.querySelectorAll('input').forEach(i=>i.value='')
+
+suggestions.innerHTML=''
+
+errorBox.textContent=''
+
+}
+
+map.on('click',e=>{
+setMarker(e.latlng.lat,e.latlng.lng)
+})
+
+/* --------------------------------------------------
+Simple test cases (console based)
+These help validate core logic without API access
+-------------------------------------------------- */
+
+function runTests(){
+
+console.log("Running demo tests...")
+
+setMarker(52.1,5.1)
+
+console.assert(document.getElementById('lat').value!=="","Lat set")
+console.assert(document.getElementById('lon').value!=="","Lon set")
+
+setField('city','TestCity')
+
+console.assert(document.getElementById('city').value==='TestCity','Field setter works')
+
+console.log("Tests finished")
+
+}
+
+window.runTests=runTests
+
+</script>
+</body>
+</html>
