@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Planon – Address Entry & Validation (Clean Version)</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+:root {
+  --p-blue: #003B73;
+  --p-cyan: #00A0E3;
+  --p-bg: #f5f8fb;
+  --p-text: #0e1b2a;
+  --p-border: #d9e1ea;
+  --p-muted: #6a7b8c;
+  --shadow: 0 6px 18px rgba(0,0,0,0.08);
+  --radius: 10px;
+  --font: ui-sans-serif, system-ui, Segoe UI, Roboto, Arial;
+}
+body { margin:0; font-family:var(--font); background:var(--p-bg); color:var(--p-text); }
+header { background:linear-gradient(90deg, var(--p-blue), #001d3d); color:white; padding:14px 20px; display:flex; align-items:center; }
+header .logo { width:28px; height:28px; background:var(--p-cyan); border-radius:5px; display:flex; align-items:center; justify-content:center; font-weight:bold; margin-right:12px; }
+.container { display:grid; grid-template-columns:420px 1fr; gap:16px; padding:16px; height:calc(100vh - 56px); }
+.panel { background:white; border:1px solid var(--p-border); border-radius:var(--radius); box-shadow:var(--shadow); display:flex; flex-direction:column; overflow:hidden; }
+.toolbar { background:#eef3f8; padding:10px 14px; border-bottom:1px solid var(--p-border); font-weight:600; }
+.content { padding:14px; overflow:auto; }
+.field { margin-bottom:12px; }
+label { font-size:12px; color:var(--p-muted); margin-bottom:4px; display:block; }
+input, textarea, select { width:100%; padding:10px; border:1px solid var(--p-border); border-radius:8px; }
+.autocomplete-list { position:absolute; background:white; border:1px solid var(--p-border); border-radius:8px; box-shadow:var(--shadow); max-height:240px; overflow:auto; z-index:999; }
+.autocomplete-item { padding:8px 10px; cursor:pointer; border-bottom:1px solid #f0f0f0; }
+.autocomplete-item:hover { background:#e2f2ff; }
+#map { width:100%; height:100%; }
+.button-row { display:flex; gap:8px; margin-top:8px; }
+button { padding:8px 12px; border-radius:8px; border:1px solid var(--p-border); cursor:pointer; }
+button.primary { background:var(--p-blue); color:white; border-color:var(--p-blue); }
+</style>
+</head>
+<body>
+<header><div class="logo">P</div><h2>Planon – Address Entry & Validation</h2></header>
+<div class="container">
+
+<!-- LEFT PANEL -->
+<div class="panel">
+<div class="toolbar">Address Details</div>
+<div class="content">
+
+<div class="field" style="position:relative;">
+  <label>Search address (start typing)</label>
+  <input id="search" placeholder="e.g. Champs-Élysées 10, Paris" />
+  <div id="ac-list" class="autocomplete-list" hidden></div>
+</div>
+
+<div class="field"><label>Street + Number</label><input id="line1" placeholder="e.g. 10 Avenue des Champs-Élysées" /></div>
+<div class="field"><label>Additional info</label><input id="line2" placeholder="e.g. Building, wing, floor" /></div>
+<div class="field"><label>City / Locality</label><input id="city" placeholder="e.g. Paris" /></div>
+<div class="field"><label>Municipality / District</label><input id="district" placeholder="e.g. 8th arrondissement" /></div>
+<div class="field"><label>Region / Province / State</label><input id="region" placeholder="e.g. Île‑de‑France" /></div>
+<div class="field"><label>Postal Code</label><input id="postal" placeholder="75008" /></div>
+<div class="field"><label>Country (name)</label><input id="country" placeholder="France" /></div>
+<div class="field"><label>Country Code (ISO 3166‑1 alpha‑2)</label><input id="cc" maxlength="2" placeholder="FR" /></div>
+
+<div class="field"><label>Latitude</label><input id="lat" /></div>
+<div class="field"><label>Longitude</label><input id="lon" /></div>
+
+<div class="button-row">
+  <button class="primary" id="validate">Validate</button>
+  <button id="reverse">Reverse Geocode</button>
+</div>
+
+</div></div>
+
+<!-- MAP PANEL -->
+<div class="panel">
+<div class="toolbar">Map</div>
+<div id="map"></div>
+</div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const acList = $('ac-list');
+const search = $('search');
+
+let map = L.map('map').setView([51.842, 5.852], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+let marker = L.marker([51.842,5.852],{draggable:true}).addTo(map);
+
+marker.on('dragend', async e => {
+  const {lat, lng} = e.target.getLatLng();
+  $('lat').value = lat.toFixed(6);
+  $('lon').value = lng.toFixed(6);
+});
+
+async function autocomplete(q) {
+  if (q.length < 3) { acList.hidden = true; return; }
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=en`;
+  const res = await fetch(url);
+  if (!res.ok) return;
+  const data = await res.json();
+  acList.innerHTML = '';
+  data.features.forEach(f => {
+    const p = f.properties;
+    const div = document.createElement('div');
+    div.className = 'autocomplete-item';
+    div.textContent = p.name || p.street || '(unknown)';
+    div.onclick = () => fillFromFeature(f);
+    acList.appendChild(div);
+  });
+  acList.hidden = data.features.length === 0;
+}
+
+function fillFromFeature(f) {
+  const p = f.properties;
+  $('line1').value = [p.housenumber,p.street].filter(Boolean).join(' ');
+  $('city').value = p.city || p.town || p.village || '';
+  $('district').value = p.county || '';
+  $('region').value = p.state || '';
+  $('postal').value = p.postcode || '';
+  $('country').value = p.country || '';
+  $('cc').value = (p.countrycode||'').toUpperCase();
+  const [lon,lat] = f.geometry.coordinates;
+  $('lat').value = lat;
+  $('lon').value = lon;
+  marker.setLatLng([lat,lon]);
+  map.setView([lat,lon],16);
+  acList.hidden = true;
+}
+
+search.addEventListener('input', e => autocomplete(e.target.value));
+document.addEventListener('click', e => { if (!acList.contains(e.target) && e.target !== search) acList.hidden = true; });
+
+$('reverse').onclick = async () => {
+  const lat = $('lat').value, lon = $('lon').value;
+  if (!lat || !lon) return;
+  const url = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}&lang=en`;
+  const res = await fetch(url);
+  if (!res.ok) return;
+  const data = await res.json();
+  if (data.features.length) fillFromFeature(data.features[0]);
+};
+</script>
+</body></html>
