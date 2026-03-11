@@ -14,7 +14,7 @@ header{background:#0f4c81;color:white;padding:14px 20px;font-size:20px;font-weig
 label{display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#444}
 input{width:100%;padding:8px;border:1px solid #cfd6e0;border-radius:4px}
 input:focus{outline:none;border-color:#0f4c81}
-#map{height:100%}
+#map{height:100%;background:#e9eef5;display:flex;align-items:center;justify-content:center;color:#666;font-size:14px}
 button{background:#0f4c81;color:white;border:none;padding:8px 10px;border-radius:4px;margin-right:6px;cursor:pointer}
 button.secondary{background:#6c7a89}
 #suggestions{border:1px solid #cfd6e0;border-top:none;max-height:150px;overflow:auto}
@@ -70,30 +70,67 @@ button.secondary{background:#6c7a89}
 
 </div>
 
-<div id="map"></div>
+<div id="map">Map loading...</div>
 
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 
+(function(){
+
 /* --------------------------------------------------
-Map initialization
+Safe Leaflet initialization (prevents "" is not a function
+when library fails to load)
 -------------------------------------------------- */
 
-const map=L.map('map').setView([52.1,5.1],7)
+var map
+var marker
+
+function initMap(){
+
+if(typeof window.L === 'undefined'){
+
+console.warn('Leaflet failed to load. Running map in fallback mode.')
+
+document.getElementById('map').innerHTML = 'Map unavailable (offline mode)'
+
+map = {
+setView:function(){},
+on:function(){},
+}
+
+marker = {
+setLatLng:function(){},
+getLatLng:function(){return {lat:0,lng:0}}
+}
+
+return
+}
+
+map = L.map('map').setView([52.1,5.1],7)
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
 maxZoom:19,
 attribution:'© OpenStreetMap'
 }).addTo(map)
 
-let marker=L.marker([52.1,5.1],{draggable:true}).addTo(map)
+marker = L.marker([52.1,5.1],{draggable:true}).addTo(map)
 
-marker.on('dragend',()=>{
-const p=marker.getLatLng()
+marker.on('dragend',function(){
+var p=marker.getLatLng()
 setLatLon(p.lat,p.lng)
 })
+
+map.on('click',function(e){
+setMarker(e.latlng.lat,e.latlng.lng)
+})
+
+}
+
+/* --------------------------------------------------
+Helpers
+-------------------------------------------------- */
 
 function setLatLon(lat,lon){
 document.getElementById('lat').value=parseFloat(lat).toFixed(6)
@@ -103,21 +140,27 @@ document.getElementById('lon').value=parseFloat(lon).toFixed(6)
 function setMarker(lat,lon){
 lat=parseFloat(lat)
 lon=parseFloat(lon)
-marker.setLatLng([lat,lon])
-map.setView([lat,lon],16)
+if(marker && marker.setLatLng) marker.setLatLng([lat,lon])
+if(map && map.setView) map.setView([lat,lon],16)
 setLatLon(lat,lon)
+}
+
+function setField(id,val){
+var el=document.getElementById(id)
+if(el) el.value=val||''
 }
 
 /* --------------------------------------------------
 Search / Autocomplete
 -------------------------------------------------- */
 
-const search=document.getElementById('search')
-const suggestions=document.getElementById('suggestions')
-const errorBox=document.getElementById('error')
+var search=document.getElementById('search')
+var suggestions=document.getElementById('suggestions')
+var errorBox=document.getElementById('error')
 
-search.addEventListener('input',async()=>{
-const q=search.value.trim()
+search.addEventListener('input',async function(){
+
+var q=search.value.trim()
 
 if(q.length<3){
 suggestions.innerHTML=''
@@ -126,56 +169,57 @@ return
 
 try{
 
-const url=`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(q)}`
+var url='https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q='+encodeURIComponent(q)
 
-const res=await fetch(url,{headers:{'Accept':'application/json'}})
+var res=await fetch(url,{headers:{'Accept':'application/json'}})
 
 if(!res.ok) throw new Error('Network response was not ok')
 
-const data=await res.json()
+var data=await res.json()
 
 renderSuggestions(data)
+
 errorBox.textContent=''
 
 }catch(err){
 
 console.warn('Address lookup failed',err)
 
-errorBox.textContent="Address lookup failed (network/CORS). Running in offline demo mode."
+errorBox.textContent='Address lookup failed (network/CORS). Using demo data.'
 
-/* Fallback demo suggestions so UI still works */
-const mock=[{
+var mock=[{
 lat:52.379189,
 lon:4.899431,
-display_name:"Dam Square, Amsterdam, Netherlands",
+display_name:'Dam Square, Amsterdam, Netherlands',
 address:{
-road:"Dam",
-city:"Amsterdam",
-state:"North Holland",
-postcode:"1012",
-country:"Netherlands",
-country_code:"nl"
+road:'Dam',
+city:'Amsterdam',
+state:'North Holland',
+postcode:'1012',
+country:'Netherlands',
+country_code:'nl'
 }
 }]
 
 renderSuggestions(mock)
 
 }
+
 })
 
 function renderSuggestions(data){
 
 suggestions.innerHTML=''
 
-(data||[]).slice(0,5).forEach(place=>{
+(data||[]).slice(0,5).forEach(function(place){
 
-const div=document.createElement('div')
+var div=document.createElement('div')
 
 div.className='suggestion'
 
 div.textContent=place.display_name
 
- div.onclick=()=>selectAddress(place)
+div.onclick=function(){selectAddress(place)}
 
 suggestions.appendChild(div)
 
@@ -193,7 +237,7 @@ suggestions.innerHTML=''
 
 if(place.display_name) search.value=place.display_name
 
-const a=place.address||{}
+var a=place.address||{}
 
 setField('street',a.road)
 setField('housenumber',a.house_number)
@@ -207,32 +251,29 @@ setField('countrycode',(a.country_code||'').toUpperCase())
 if(place.lat && place.lon){
 setMarker(place.lat,place.lon)
 }
-}
 
-function setField(id,val){
-document.getElementById(id).value=val||''
 }
 
 /* --------------------------------------------------
 Reverse geocoding
 -------------------------------------------------- */
 
-async function reverseFromCoords(){
+window.reverseFromCoords = async function(){
 
-const lat=document.getElementById('lat').value
-const lon=document.getElementById('lon').value
+var lat=document.getElementById('lat').value
+var lon=document.getElementById('lon').value
 
 if(!lat||!lon) return
 
 try{
 
-const url=`https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&lat=${lat}&lon=${lon}`
+var url='https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&lat='+lat+'&lon='+lon
 
-const res=await fetch(url,{headers:{'Accept':'application/json'}})
+var res=await fetch(url,{headers:{'Accept':'application/json'}})
 
 if(!res.ok) throw new Error('Network error')
 
-const data=await res.json()
+var data=await res.json()
 
 selectAddress({
 lat:lat,
@@ -245,17 +286,18 @@ errorBox.textContent=''
 
 }catch(err){
 console.warn('Reverse geocoding failed',err)
-errorBox.textContent="Reverse geocoding failed (network/CORS). Coordinates kept." 
+errorBox.textContent='Reverse geocoding failed. Coordinates kept.'
 }
+
 }
 
 /* --------------------------------------------------
 Utility
 -------------------------------------------------- */
 
-function clearAddress(){
+window.clearAddress=function(){
 
-document.querySelectorAll('input').forEach(i=>i.value='')
+document.querySelectorAll('input').forEach(function(i){i.value=''})
 
 suggestions.innerHTML=''
 
@@ -263,33 +305,43 @@ errorBox.textContent=''
 
 }
 
-map.on('click',e=>{
-setMarker(e.latlng.lat,e.latlng.lng)
-})
-
 /* --------------------------------------------------
-Simple test cases (console based)
-These help validate core logic without API access
+Tests
 -------------------------------------------------- */
 
 function runTests(){
 
-console.log("Running demo tests...")
+console.log('Running demo tests...')
 
 setMarker(52.1,5.1)
 
-console.assert(document.getElementById('lat').value!=="","Lat set")
-console.assert(document.getElementById('lon').value!=="","Lon set")
+console.assert(document.getElementById('lat').value!=='' ,'Latitude set')
+console.assert(document.getElementById('lon').value!=='' ,'Longitude set')
 
 setField('city','TestCity')
 
 console.assert(document.getElementById('city').value==='TestCity','Field setter works')
 
-console.log("Tests finished")
+selectAddress({
+lat:1,
+lon:2,
+display_name:'Test',
+address:{city:'DemoCity'}
+})
+
+console.assert(document.getElementById('city').value==='DemoCity','selectAddress populates fields')
+
+console.log('Tests finished')
 
 }
 
-window.runTests=runTests
+window.runTests = runTests
+
+/* -------------------------------------------------- */
+
+initMap()
+
+})();
 
 </script>
 </body>
