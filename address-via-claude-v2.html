@@ -369,7 +369,7 @@
   }
   .coord-row {
     display: grid;
-    grid-template-columns: 1fr 1fr auto;
+    grid-template-columns: 1fr 1fr auto auto;
     gap: 10px; align-items: end;
   }
   .coord-status-badge {
@@ -513,7 +513,63 @@
   }
   .status-bar.visible { display: flex; }
 
-  /* ─── Spinner ─── */
+  /* ─── Map action panel (below map, replaces old reverse-preview + pin cards) ─── */
+  .map-action-panel {
+    background: var(--planon-white);
+    border: 1px solid var(--planon-gray-300);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    margin-top: 14px;
+    overflow: hidden;
+  }
+  .map-panel-state { display: none; }
+  .map-panel-state.active { display: block; }
+
+  .map-panel-idle {
+    padding: 14px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  }
+  .map-panel-coord-val {
+    font-size: 14px; font-weight: 700; color: var(--planon-navy);
+    font-family: monospace; line-height: 1.3;
+  }
+  .map-panel-coord-lbl {
+    font-size: 10px; color: var(--planon-gray-500); text-transform: uppercase; letter-spacing: .3px;
+  }
+
+  .map-panel-pending {
+    border-top: 3px solid var(--planon-orange);
+  }
+  .map-panel-pending-header {
+    background: var(--planon-orange-lt);
+    padding: 10px 14px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12.5px; font-weight: 600; color: var(--planon-orange);
+    border-bottom: 1px solid #F5D5B8;
+  }
+  .map-panel-pending-body { padding: 12px 14px; }
+  .map-panel-pending-coords {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    margin-bottom: 12px;
+  }
+  .map-panel-actions {
+    display: flex; gap: 7px; flex-wrap: wrap;
+  }
+
+  .map-panel-result-header {
+    background: var(--planon-blue-pale);
+    padding: 10px 14px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12.5px; font-weight: 600; color: var(--planon-navy);
+    border-bottom: 1px solid #C5D9F0;
+  }
+  .map-panel-result-body { padding: 12px 14px; }
+
+  .map-panel-loading {
+    padding: 20px 14px;
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px; color: var(--planon-gray-500); font-size: 13px;
+  }
   .spin {
     width: 16px; height: 16px;
     border: 2px solid rgba(255,255,255,.3);
@@ -794,10 +850,10 @@
                     step="0.000001" min="-180" max="180"
                     oninput="onManualCoordChange()" />
                 </div>
-                <button class="btn btn-secondary btn-sm" onclick="applyManualCoords()" title="Apply manually entered coordinates to map">📌 Apply</button>
+                <button class="btn btn-secondary btn-sm" onclick="applyManualCoords()" title="Move map pin to these coordinates">📌 Apply to Map</button>
+                <button class="btn btn-ghost btn-sm" onclick="reverseGeocodeManualCoords()" title="Reverse geocode these coordinates">🔄 Reverse Geocode</button>
               </div>
               <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                <button class="btn btn-ghost btn-sm" onclick="doReverseGeocode()">🔄 Reverse Geocode</button>
                 <button class="btn btn-ghost btn-sm" onclick="resetCoordinatesToAddress()">↩ Reset to Address</button>
                 <span id="coord-source-label" style="font-size:11px;color:var(--planon-gray-500);margin-left:auto"></span>
               </div>
@@ -850,39 +906,75 @@
           </div>
         </div>
 
-        <!-- Reverse geocode result preview -->
-        <div class="card" id="reverse-preview-card" style="margin-top:14px;display:none">
-          <div class="card-header" style="padding:10px 14px">
-            <span class="card-header-icon">🔄</span>
-            <span class="card-header-title">Reverse Geocode Result</span>
-          </div>
-          <div class="card-body" style="padding:14px">
-            <div id="reverse-preview-content" style="font-size:12.5px;line-height:1.6;color:var(--planon-gray-700)"></div>
-            <div style="display:flex;gap:8px;margin-top:12px">
-              <button class="btn btn-success btn-sm" onclick="applyReverseResult()">✔ Apply to Fields</button>
-              <button class="btn btn-ghost btn-sm" onclick="dismissReversePreview()">✕ Dismiss</button>
-            </div>
-          </div>
-        </div>
+        <!-- ── Unified map action panel ── -->
+        <div class="map-action-panel" id="map-action-panel">
 
-        <!-- Map legend / coordinate display -->
-        <div class="card" style="margin-top:14px">
-          <div class="card-body" style="padding:14px">
-            <div style="font-size:11px;font-weight:700;color:var(--planon-gray-500);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Pin Location</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <!-- STATE: idle — just shows committed pin position -->
+          <div class="map-panel-state active" id="map-panel-idle">
+            <div class="map-panel-idle">
               <div>
-                <div style="font-size:10px;color:var(--planon-gray-500)">Latitude</div>
-                <div style="font-size:14px;font-weight:700;color:var(--planon-navy);font-family:monospace" id="pin-lat-display">—</div>
+                <div class="map-panel-coord-lbl">Latitude</div>
+                <div class="map-panel-coord-val" id="pin-lat-display">—</div>
               </div>
               <div>
-                <div style="font-size:10px;color:var(--planon-gray-500)">Longitude</div>
-                <div style="font-size:14px;font-weight:700;color:var(--planon-navy);font-family:monospace" id="pin-lng-display">—</div>
+                <div class="map-panel-coord-lbl">Longitude</div>
+                <div class="map-panel-coord-val" id="pin-lng-display">—</div>
               </div>
             </div>
-            <div style="margin-top:8px;font-size:11.5px;color:var(--planon-gray-500)" id="address-lock-info">
+            <div style="padding:0 14px 10px;font-size:11.5px;color:var(--planon-gray-500)" id="address-lock-info">
               <span style="color:var(--planon-gray-300)">⬡</span> Address not validated
             </div>
           </div>
+
+          <!-- STATE: pending — pin placed/dragged, awaiting user decision -->
+          <div class="map-panel-state" id="map-panel-pending">
+            <div class="map-panel-pending-header">
+              <span style="font-size:16px">📌</span>
+              <span>New pin position — not yet applied</span>
+            </div>
+            <div class="map-panel-pending-body">
+              <div class="map-panel-pending-coords">
+                <div>
+                  <div class="map-panel-coord-lbl">Latitude</div>
+                  <div class="map-panel-coord-val" id="pending-lat-display" style="color:var(--planon-orange)">—</div>
+                </div>
+                <div>
+                  <div class="map-panel-coord-lbl">Longitude</div>
+                  <div class="map-panel-coord-val" id="pending-lng-display" style="color:var(--planon-orange)">—</div>
+                </div>
+              </div>
+              <div class="map-panel-actions">
+                <button class="btn btn-primary btn-sm" onclick="startReverseFromPending()">🔄 Reverse Geocode &amp; Apply</button>
+                <button class="btn btn-secondary btn-sm" onclick="commitCoordsOnly()">📌 Coordinates Only</button>
+                <button class="btn btn-ghost btn-sm" onclick="cancelPending()">✕ Cancel</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- STATE: loading -->
+          <div class="map-panel-state" id="map-panel-loading">
+            <div class="map-panel-loading">
+              <span class="spin dark"></span> Reverse geocoding…
+            </div>
+          </div>
+
+          <!-- STATE: result — shows reverse geocode data, user confirms -->
+          <div class="map-panel-state" id="map-panel-result">
+            <div class="map-panel-result-header">
+              <span style="font-size:16px">🔄</span>
+              <span>Reverse geocode result</span>
+              <span style="margin-left:auto;font-size:11px;font-weight:400;color:var(--planon-gray-500)">Review &amp; confirm</span>
+            </div>
+            <div class="map-panel-result-body">
+              <div id="map-panel-result-content" style="font-size:12.5px;line-height:1.6;color:var(--planon-gray-700);margin-bottom:12px"></div>
+              <div class="map-panel-actions">
+                <button class="btn btn-success btn-sm" onclick="applyReverseResult()">✔ Apply all fields</button>
+                <button class="btn btn-ghost btn-sm" onclick="showMapPanelState('pending')">↩ Back</button>
+                <button class="btn btn-ghost btn-sm" onclick="cancelPending()">✕ Cancel</button>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
@@ -1026,7 +1118,8 @@
 let map, marker;
 let mapMode = 'view'; // 'view' | 'drag' | 'click'
 let validatedLat = null, validatedLng = null;  // coordinates from geocoding
-let currentLat = null, currentLng = null;       // current pin position (may differ if dragged)
+let currentLat = null, currentLng = null;       // committed pin position
+let pendingLat = null, pendingLng = null;        // placed but not yet confirmed
 let addressValidated = false;
 let pendingReverseResult = null;
 let searchDebounce = null;
@@ -1050,6 +1143,24 @@ const adminLabels = {
 /* ════════════════════════════════════════════════════════════
    MAP INIT
 ════════════════════════════════════════════════════════════ */
+function makeIcon(pending) {
+  const fill = pending ? '#E87722' : '#004EA8';
+  const inner = pending ? '#FFFFFF' : '#E87722';
+  return L.divIcon({
+    html: `<div style="width:28px;height:38px;filter:drop-shadow(0 3px 6px rgba(0,40,85,.4))">
+      <svg viewBox="0 0 28 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M14 0C6.3 0 0 6.3 0 14c0 9.8 14 24 14 24S28 23.8 28 14C28 6.3 21.7 0 14 0z" fill="${fill}"/>
+        <circle cx="14" cy="14" r="6" fill="white"/>
+        <circle cx="14" cy="14" r="3" fill="${inner}"/>
+      </svg>
+    </div>`,
+    className: '',
+    iconSize: [28, 38],
+    iconAnchor: [14, 38],
+    popupAnchor: [0, -38]
+  });
+}
+
 function initMap() {
   map = L.map('map', { zoomControl: true, attributionControl: true });
   map.setView([20, 0], 2);
@@ -1059,39 +1170,17 @@ function initMap() {
     maxZoom: 19
   }).addTo(map);
 
-  // Custom Planon-colored marker icon
-  const icon = L.divIcon({
-    html: `<div style="
-      width:28px;height:38px;position:relative;
-      filter:drop-shadow(0 3px 6px rgba(0,40,85,.4))">
-      <svg viewBox="0 0 28 38" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M14 0C6.3 0 0 6.3 0 14c0 9.8 14 24 14 24S28 23.8 28 14C28 6.3 21.7 0 14 0z" fill="#004EA8"/>
-        <circle cx="14" cy="14" r="6" fill="white"/>
-        <circle cx="14" cy="14" r="3" fill="#E87722"/>
-      </svg>
-    </div>`,
-    className: '',
-    iconSize: [28, 38],
-    iconAnchor: [14, 38],
-    popupAnchor: [0, -38]
-  });
-
-  marker = L.marker([20, 0], { icon, draggable: false }).addTo(map);
+  marker = L.marker([20, 0], { icon: makeIcon(false), draggable: false }).addTo(map);
   marker.setOpacity(0);
 
   marker.on('dragend', function(e) {
     const pos = e.target.getLatLng();
-    setCurrentCoords(pos.lat, pos.lng, 'manual_pin', false);
-    updatePinDisplay(pos.lat, pos.lng);
-    setCoordBadge('manual');
-    updateAddressLockInfo();
-    toast('📌 Pin moved. Address fields preserved. Use Reverse Geocode to update address.', 'warning');
+    setPendingPin(pos.lat, pos.lng);
   });
 
   map.on('click', function(e) {
     if (mapMode !== 'click') return;
-    placeMarkerAt(e.latlng.lat, e.latlng.lng, 'manual_pin');
-    toast('📌 Location placed. Use Reverse Geocode to populate address fields.', 'warning');
+    setPendingPin(e.latlng.lat, e.latlng.lng);
   });
 
   map.on('zoomend', function() {
@@ -1111,7 +1200,7 @@ function setMapMode(mode) {
     marker.dragging.enable();
     map.getContainer().style.cursor = 'grab';
     document.getElementById('map-info-strip').innerHTML =
-      '<span style="color:var(--planon-warn)">✋</span> Drag the pin to adjust location · Address fields will be preserved';
+      '<span style="color:var(--planon-warn)">✋</span> Drag the pin to a new position';
   } else {
     marker.dragging.disable();
     map.getContainer().style.cursor = mode === 'click' ? 'crosshair' : '';
@@ -1124,10 +1213,12 @@ function setMapMode(mode) {
   }
 }
 
+/* Commit marker at position (blue) — called by address search & applyReverseResult */
 function placeMarkerAt(lat, lng, accuracy) {
-  currentLat = lat;
-  currentLng = lng;
+  currentLat = lat; currentLng = lng;
+  pendingLat = null; pendingLng = null;
   marker.setLatLng([lat, lng]);
+  marker.setIcon(makeIcon(false));
   marker.setOpacity(1);
   map.setView([lat, lng], Math.max(map.getZoom(), 14));
   setField('f-lat', lat.toFixed(6));
@@ -1135,6 +1226,64 @@ function placeMarkerAt(lat, lng, accuracy) {
   setField('f-coord-accuracy', accuracy || 'geocoded');
   updatePinDisplay(lat, lng);
   updateMapInfoStrip();
+  showMapPanelState('idle');
+}
+
+/* Move marker to PENDING (orange) — does NOT update any fields */
+function setPendingPin(lat, lng) {
+  pendingLat = lat; pendingLng = lng;
+  marker.setLatLng([lat, lng]);
+  marker.setIcon(makeIcon(true));
+  marker.setOpacity(1);
+  map.panTo([lat, lng]);
+  document.getElementById('pending-lat-display').textContent = lat.toFixed(6);
+  document.getElementById('pending-lng-display').textContent = lng.toFixed(6);
+  document.getElementById('map-info-strip').innerHTML =
+    '<span style="color:var(--planon-orange)">●</span> Pending — confirm or cancel below';
+  showMapPanelState('pending');
+}
+
+/* Commit coords only — no address update */
+function commitCoordsOnly() {
+  if (pendingLat === null) return;
+  currentLat = pendingLat; currentLng = pendingLng;
+  pendingLat = null; pendingLng = null;
+  marker.setIcon(makeIcon(false));
+  setField('f-lat', currentLat.toFixed(6));
+  setField('f-lng', currentLng.toFixed(6));
+  document.getElementById('f-lat').classList.remove('validated');
+  document.getElementById('f-lng').classList.remove('validated');
+  document.getElementById('f-lat').classList.add('manual-override');
+  document.getElementById('f-lng').classList.add('manual-override');
+  setField('f-coord-accuracy', 'manual_pin');
+  setCoordBadge('manual');
+  updatePinDisplay(currentLat, currentLng);
+  updateMapInfoStrip();
+  updateAddressLockInfo();
+  document.getElementById('coord-source-label').textContent = '📌 Manual pin';
+  showMapPanelState('idle');
+}
+
+/* Cancel pending — snap marker back */
+function cancelPending() {
+  pendingLat = null; pendingLng = null;
+  pendingReverseResult = null;
+  if (currentLat !== null) {
+    marker.setLatLng([currentLat, currentLng]);
+    marker.setIcon(makeIcon(false));
+    marker.setOpacity(1);
+  } else {
+    marker.setOpacity(0);
+  }
+  updateMapInfoStrip();
+  showMapPanelState('idle');
+}
+
+/* Switch panel state */
+function showMapPanelState(state) {
+  ['idle','pending','loading','result'].forEach(s => {
+    document.getElementById('map-panel-'+s).classList.toggle('active', s === state);
+  });
 }
 
 function updateMapInfoStrip() {
@@ -1156,6 +1305,114 @@ function setCoordBadge(type) {
   if (type === 'geocoded') { b.className = 'coord-status-badge geocoded'; b.textContent = '⬤ Geocoded'; }
   else if (type === 'manual') { b.className = 'coord-status-badge manual'; b.textContent = '⬤ Manual Pin'; }
   else { b.className = 'coord-status-badge none'; b.textContent = '⬤ Not set'; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   MANUAL COORDINATES
+════════════════════════════════════════════════════════════ */
+function onManualCoordChange() {
+  document.getElementById('f-lat').classList.add('manual-override');
+  document.getElementById('f-lng').classList.add('manual-override');
+}
+
+/* Apply manually typed coords — moves pin to pending (same flow as drag/click) */
+function applyManualCoords() {
+  const lat = parseFloat(document.getElementById('f-lat').value);
+  const lng = parseFloat(document.getElementById('f-lng').value);
+  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    toast('⚠ Invalid coordinates. Latitude: -90 to 90, Longitude: -180 to 180', 'error');
+    return;
+  }
+  setPendingPin(lat, lng);
+  map.setView([lat, lng], Math.max(map.getZoom(), 14));
+}
+
+/* Reverse geocode from typed lat/lng — same pending flow */
+function reverseGeocodeManualCoords() {
+  const lat = parseFloat(document.getElementById('f-lat').value);
+  const lng = parseFloat(document.getElementById('f-lng').value);
+  if (isNaN(lat) || isNaN(lng)) { toast('⚠ Enter coordinates first', 'warning'); return; }
+  setPendingPin(lat, lng);
+  map.setView([lat, lng], Math.max(map.getZoom(), 14));
+  startReverseFromPending();
+}
+
+function resetCoordinatesToAddress() {
+  if (!validatedLat) { toast('No validated address to reset to', 'warning'); return; }
+  cancelPending();
+  currentLat = validatedLat; currentLng = validatedLng;
+  placeMarkerAt(validatedLat, validatedLng, 'geocoded');
+  setCurrentCoords(validatedLat, validatedLng, 'geocoded', true);
+  setCoordBadge('geocoded');
+  updateAddressLockInfo();
+  toast('↩ Coordinates reset to geocoded address location', 'info');
+}
+
+/* ════════════════════════════════════════════════════════════
+   REVERSE GEOCODING
+════════════════════════════════════════════════════════════ */
+async function startReverseFromPending() {
+  if (pendingLat === null) return;
+  showMapPanelState('loading');
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${pendingLat}&lon=${pendingLng}&format=json&addressdetails=1&accept-language=en`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.error) { showMapPanelState('pending'); toast('No address found at this location', 'warning'); return; }
+    pendingReverseResult = data;
+    renderReverseResult(data, pendingLat, pendingLng);
+    showMapPanelState('result');
+  } catch(e) {
+    showMapPanelState('pending');
+    toast('⚠ Reverse geocoding failed — check connection', 'error');
+  }
+}
+
+function renderReverseResult(data, lat, lng) {
+  const a = data.address || {};
+  const cc = (a.country_code || '').toUpperCase();
+  const street = a.road || a.pedestrian || '';
+  const num = a.house_number || '';
+  const streetLine = street && num
+    ? (isNumberFirst(cc) ? `${num} ${street}` : `${street} ${num}`)
+    : (street || num);
+  const city = a.city || a.town || a.village || '';
+  document.getElementById('map-panel-result-content').innerHTML = `
+    <div style="font-weight:600;color:var(--planon-navy);margin-bottom:8px;font-size:13px">
+      📍 ${escHtml(data.display_name.split(',').slice(0,3).join(', '))}
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      ${row('Street', streetLine)}
+      ${row('Postal code', a.postcode)}
+      ${row('City', city)}
+      ${row('State / Province', a.state || a.region)}
+      ${row('Country', a.country)}
+      ${row('Coordinates', `${lat.toFixed(6)}, ${lng.toFixed(6)}`)}
+    </table>
+    <p style="margin-top:8px;font-size:11px;color:var(--planon-gray-500)">
+      Applying will update all address fields and commit the new coordinates.
+    </p>`;
+}
+
+function row(label, val) {
+  if (!val) return '';
+  return `<tr><td style="padding:3px 6px 3px 0;color:var(--planon-gray-500);white-space:nowrap">${escHtml(label)}</td>
+    <td style="padding:3px 0;color:var(--planon-gray-900);font-weight:500">${escHtml(val)}</td></tr>`;
+}
+
+function applyReverseResult() {
+  if (!pendingReverseResult || pendingLat === null) return;
+  const lat = pendingLat, lng = pendingLng;
+  // Patch the lat/lon into result so populateFromResult uses the pin position
+  pendingReverseResult.lat = String(lat);
+  pendingReverseResult.lon = String(lng);
+  currentLat = lat; currentLng = lng;
+  validatedLat = lat; validatedLng = lng;
+  pendingLat = null; pendingLng = null;
+  marker.setIcon(makeIcon(false));
+  populateFromResult(pendingReverseResult);
+  pendingReverseResult = null;
+  showMapPanelState('idle');
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -1543,115 +1800,6 @@ function updateAddressLockInfo() {
 }
 
 /* ════════════════════════════════════════════════════════════
-   MANUAL COORDINATES
-════════════════════════════════════════════════════════════ */
-function onManualCoordChange() {
-  document.getElementById('f-lat').classList.add('manual-override');
-  document.getElementById('f-lng').classList.add('manual-override');
-}
-
-function applyManualCoords() {
-  const lat = parseFloat(document.getElementById('f-lat').value);
-  const lng = parseFloat(document.getElementById('f-lng').value);
-  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-    toast('⚠ Invalid coordinates. Latitude: -90 to 90, Longitude: -180 to 180', 'error');
-    return;
-  }
-  currentLat = lat; currentLng = lng;
-  placeMarkerAt(lat, lng, 'manual_pin');
-  setCoordBadge('manual');
-  document.getElementById('f-coord-accuracy').value = 'manual_pin';
-  updateAddressLockInfo();
-  document.getElementById('coord-source-label').textContent = '📌 Manual entry';
-  toast('📌 Map pin updated to manual coordinates. Address fields unchanged.', 'warning');
-}
-
-function resetCoordinatesToAddress() {
-  if (!validatedLat) { toast('No validated address to reset to', 'warning'); return; }
-  currentLat = validatedLat; currentLng = validatedLng;
-  placeMarkerAt(validatedLat, validatedLng, 'geocoded');
-  setCurrentCoords(validatedLat, validatedLng, 'geocoded', true);
-  setCoordBadge('geocoded');
-  updateAddressLockInfo();
-  toast('↩ Coordinates reset to geocoded address location', 'info');
-}
-
-/* ════════════════════════════════════════════════════════════
-   REVERSE GEOCODING
-════════════════════════════════════════════════════════════ */
-async function doReverseGeocode() {
-  const lat = parseFloat(document.getElementById('f-lat').value);
-  const lng = parseFloat(document.getElementById('f-lng').value);
-  if (isNaN(lat) || isNaN(lng)) {
-    toast('⚠ Enter or place coordinates first before reverse geocoding', 'warning');
-    return;
-  }
-  toast('🔄 Reverse geocoding…', 'info');
-  try {
-    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&accept-language=en`;
-    const res = await fetch(url);
-    const data = await res.json();
-    if (data.error) { toast('No address found at these coordinates', 'warning'); return; }
-    pendingReverseResult = data;
-    showReversePreview(data, lat, lng);
-  } catch(e) {
-    toast('⚠ Reverse geocoding failed — check connection', 'error');
-  }
-}
-
-function showReversePreview(data, lat, lng) {
-  const a = data.address || {};
-  const card = document.getElementById('reverse-preview-card');
-  const content = document.getElementById('reverse-preview-content');
-
-  const line1 = buildLine1(a);
-  const city = a.city || a.town || a.village || '';
-  const country = a.country || '';
-
-  content.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-      <span style="font-size:20px">📍</span>
-      <strong style="color:var(--planon-navy)">${escHtml(data.display_name.split(',').slice(0,3).join(','))}</strong>
-    </div>
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
-      ${row('Street', line1)}
-      ${row('Postal Code', a.postcode)}
-      ${row('City', city)}
-      ${row('State / Province', a.state || a.region)}
-      ${row('Country', country)}
-      ${row('Coordinates', `${lat.toFixed(6)}, ${lng.toFixed(6)}`)}
-    </table>
-    <p style="margin-top:10px;font-size:11.5px;color:var(--planon-warn);font-weight:500">
-      ⚠ Applying will overwrite address fields. Coordinates will remain as currently set.
-    </p>
-  `;
-  card.style.display = 'block';
-}
-
-function row(label, val) {
-  if (!val) return '';
-  return `<tr><td style="padding:3px 6px 3px 0;color:var(--planon-gray-500);white-space:nowrap">${escHtml(label)}</td><td style="padding:3px 0;color:var(--planon-gray-900);font-weight:500">${escHtml(val)}</td></tr>`;
-}
-
-function applyReverseResult() {
-  if (!pendingReverseResult) return;
-  populateFromResult(pendingReverseResult);
-  // But keep current coords (pin was moved intentionally)
-  const lat = parseFloat(document.getElementById('f-lat').value);
-  const lng = parseFloat(document.getElementById('f-lng').value);
-  // coords already updated by populateFromResult; restore pin position
-  placeMarkerAt(currentLat || lat, currentLng || lng, 'manual_pin');
-  document.getElementById('f-coord-accuracy').value = 'manual_pin';
-  dismissReversePreview();
-  toast('✅ Address fields updated from reverse geocode. Pin position preserved.', 'success');
-}
-
-function dismissReversePreview() {
-  document.getElementById('reverse-preview-card').style.display = 'none';
-  pendingReverseResult = null;
-}
-
-/* ════════════════════════════════════════════════════════════
    ADMIN LABELS
 ════════════════════════════════════════════════════════════ */
 function updateAdminLabels(cc) {
@@ -1749,7 +1897,8 @@ function clearAll() {
   document.getElementById('pin-lng-display').textContent = '—';
   document.getElementById('address-lock-info').innerHTML = '<span style="color:var(--planon-gray-300)">⬡</span> Address not validated';
   document.getElementById('coord-source-label').textContent = '';
-  dismissReversePreview();
+  pendingLat = null; pendingLng = null; pendingReverseResult = null;
+  showMapPanelState('idle');
   updateAdminLabels('');
   toast('Form cleared', 'info');
 }
