@@ -1,0 +1,1781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Planon — Geographic Location Management</title>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<!-- Leaflet JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<style>
+  /* ─── Planon Design Tokens ─── */
+  :root {
+    --planon-navy:       #002855;
+    --planon-blue:       #004EA8;
+    --planon-blue-light: #0072CE;
+    --planon-blue-pale:  #E8F1FB;
+    --planon-orange:     #E87722;
+    --planon-orange-lt:  #FDF1E8;
+    --planon-gray-900:   #1A1A2E;
+    --planon-gray-700:   #3D4659;
+    --planon-gray-500:   #6B7A99;
+    --planon-gray-300:   #BEC8DC;
+    --planon-gray-100:   #F2F5FA;
+    --planon-white:      #FFFFFF;
+    --planon-success:    #1A7A4A;
+    --planon-success-lt: #E6F4ED;
+    --planon-warn:       #D97706;
+    --planon-warn-lt:    #FEF3C7;
+    --planon-error:      #C0392B;
+    --planon-error-lt:   #FDEDEB;
+    --radius-sm:  4px;
+    --radius-md:  6px;
+    --radius-lg:  10px;
+    --shadow-sm:  0 1px 3px rgba(0,40,85,.08), 0 1px 2px rgba(0,40,85,.06);
+    --shadow-md:  0 4px 12px rgba(0,40,85,.12);
+    --shadow-lg:  0 10px 30px rgba(0,40,85,.16);
+    --font-ui: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-ui);
+    background: var(--planon-gray-100);
+    color: var(--planon-gray-900);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* ─── Top bar ─── */
+  .topbar {
+    background: var(--planon-navy);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    height: 52px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    position: sticky; top: 0; z-index: 1000;
+  }
+  .topbar-logo {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--planon-white);
+  }
+  .topbar-logo svg { width: 28px; height: 28px; }
+  .topbar-logo-text { font-size: 18px; font-weight: 700; letter-spacing: -.3px; }
+  .topbar-logo-sub { font-size: 11px; color: var(--planon-gray-300); letter-spacing: .5px; text-transform: uppercase; }
+  .topbar-right { display: flex; align-items: center; gap: 16px; color: var(--planon-gray-300); font-size: 12px; }
+  .topbar-badge {
+    background: var(--planon-orange);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .3px;
+    text-transform: uppercase;
+  }
+
+  /* ─── Breadcrumb ─── */
+  .breadcrumb {
+    background: var(--planon-white);
+    border-bottom: 1px solid var(--planon-gray-300);
+    padding: 10px 24px;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--planon-gray-500);
+  }
+  .breadcrumb a { color: var(--planon-blue); text-decoration: none; }
+  .breadcrumb a:hover { text-decoration: underline; }
+  .breadcrumb-sep { color: var(--planon-gray-300); }
+  .breadcrumb-current { color: var(--planon-gray-700); font-weight: 500; }
+
+  /* ─── Page layout ─── */
+  .page { max-width: 1240px; margin: 0 auto; padding: 24px 20px 60px; }
+
+  .page-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 20px; gap: 16px;
+  }
+  .page-title { font-size: 22px; font-weight: 700; color: var(--planon-navy); line-height: 1.2; }
+  .page-subtitle { font-size: 13px; color: var(--planon-gray-500); margin-top: 4px; }
+  .page-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  /* ─── Tabs ─── */
+  .tabs {
+    display: flex; gap: 0; border-bottom: 2px solid var(--planon-gray-300);
+    margin-bottom: 20px;
+  }
+  .tab-btn {
+    padding: 10px 20px; font-size: 13px; font-weight: 500;
+    color: var(--planon-gray-500); background: none; border: none;
+    cursor: pointer; border-bottom: 2px solid transparent;
+    margin-bottom: -2px; transition: all .15s;
+  }
+  .tab-btn:hover { color: var(--planon-blue); background: var(--planon-blue-pale); }
+  .tab-btn.active { color: var(--planon-blue); border-bottom-color: var(--planon-blue); font-weight: 600; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ─── Card ─── */
+  .card {
+    background: var(--planon-white);
+    border: 1px solid var(--planon-gray-300);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+  .card-header {
+    background: linear-gradient(135deg, var(--planon-navy) 0%, var(--planon-blue) 100%);
+    padding: 14px 20px;
+    display: flex; align-items: center; gap: 10px;
+    color: var(--planon-white);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    overflow: hidden;
+  }
+  .card-header-icon { font-size: 18px; }
+  .card-header-title { font-size: 14px; font-weight: 600; }
+  .card-header-badge {
+    margin-left: auto;
+    background: rgba(255,255,255,.15);
+    color: white;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+  .card-body { padding: 20px; }
+
+  /* ─── Main 2-col layout ─── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
+
+  /* ─── Form elements ─── */
+  .field-group {
+    display: grid;
+    grid-template-columns: repeat(var(--cols, 2), 1fr);
+    gap: 14px 16px;
+    margin-bottom: 20px;
+  }
+  .field-group.cols-1 { --cols: 1; }
+  .field-group.cols-3 { --cols: 3; }
+  .field-group.cols-4 { --cols: 4; }
+
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field.full { grid-column: 1 / -1; }
+
+  .field-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--planon-gray-700);
+    letter-spacing: .2px;
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .field-label .required { color: var(--planon-orange); }
+  .field-label .tooltip-icon {
+    color: var(--planon-gray-300);
+    cursor: help; font-size: 12px;
+    position: relative;
+  }
+  .field-label .info-badge {
+    background: var(--planon-blue-pale);
+    color: var(--planon-blue);
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  input[type="text"], input[type="number"], select, textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--planon-gray-300);
+    border-radius: var(--radius-md);
+    font-size: 13.5px;
+    font-family: var(--font-ui);
+    color: var(--planon-gray-900);
+    background: var(--planon-white);
+    transition: border-color .15s, box-shadow .15s;
+    outline: none;
+    appearance: none;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--planon-blue-light);
+    box-shadow: 0 0 0 3px rgba(0,114,206,.15);
+  }
+  input:read-only, input.readonly {
+    background: var(--planon-gray-100);
+    color: var(--planon-gray-500);
+    cursor: default;
+  }
+  input.validated {
+    background: var(--planon-success-lt);
+    border-color: var(--planon-success);
+    color: var(--planon-gray-900);
+  }
+  input.manual-override {
+    background: var(--planon-warn-lt);
+    border-color: var(--planon-warn);
+  }
+  select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7A99' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 32px; }
+
+  .field-hint { font-size: 11px; color: var(--planon-gray-500); margin-top: 2px; }
+  .field-status {
+    font-size: 11px;
+    display: flex; align-items: center; gap: 4px;
+    margin-top: 2px;
+    font-weight: 500;
+  }
+  .field-status.success { color: var(--planon-success); }
+  .field-status.warning { color: var(--planon-warn); }
+  .field-status.error   { color: var(--planon-error); }
+
+  /* ─── Search Bar ─── */
+  /* .search-icon removed — no icon in input field */
+  .search-wrapper {
+    position: relative;
+    margin-bottom: 20px;
+  }
+  .search-input {
+    width: 100%;
+    padding: 10px 120px 10px 14px;
+    border: 2px solid var(--planon-blue-light);
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-family: var(--font-ui);
+    color: var(--planon-gray-900);
+    background: var(--planon-white);
+    transition: all .15s;
+    outline: none;
+  }
+  .search-input:focus {
+    border-color: var(--planon-blue);
+    box-shadow: 0 0 0 4px rgba(0,78,168,.12);
+  }
+  .search-btn {
+    position: absolute; right: 4px; top: 4px; bottom: 4px;
+    padding: 0 16px;
+    background: var(--planon-blue);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .search-btn:hover { background: var(--planon-navy); }
+  .search-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* ─── Autocomplete dropdown ─── */
+  .autocomplete-dropdown {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+    background: var(--planon-white);
+    border: 1px solid var(--planon-gray-300);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 500;
+    overflow: hidden;
+    max-height: 280px;
+    overflow-y: auto;
+    display: none;
+  }
+  .autocomplete-dropdown.open { display: block; }
+  .autocomplete-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    display: flex; align-items: flex-start; gap: 10px;
+    border-bottom: 1px solid var(--planon-gray-100);
+    transition: background .1s;
+  }
+  .autocomplete-item:last-child { border-bottom: none; }
+  .autocomplete-item:hover, .autocomplete-item.highlighted { background: var(--planon-blue-pale); }
+  .autocomplete-item-icon { color: var(--planon-blue-light); margin-top: 1px; flex-shrink: 0; }
+  .autocomplete-item-main { font-size: 13px; color: var(--planon-gray-900); font-weight: 500; }
+  .autocomplete-item-sub { font-size: 11.5px; color: var(--planon-gray-500); margin-top: 1px; }
+  .autocomplete-loading {
+    padding: 12px 14px; text-align: center;
+    color: var(--planon-gray-500); font-size: 12px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+
+  /* ─── Section title ─── */
+  .section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--planon-blue);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    padding: 8px 0 10px;
+    border-bottom: 1px solid var(--planon-blue-pale);
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .section-divider {
+    height: 1px;
+    background: var(--planon-gray-100);
+    margin: 20px 0;
+  }
+
+  /* ─── Buttons ─── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font-ui);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all .15s;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--planon-blue); color: white; border-color: var(--planon-blue); }
+  .btn-primary:hover { background: var(--planon-navy); border-color: var(--planon-navy); }
+  .btn-secondary { background: var(--planon-white); color: var(--planon-blue); border-color: var(--planon-blue); }
+  .btn-secondary:hover { background: var(--planon-blue-pale); }
+  .btn-ghost { background: none; color: var(--planon-gray-700); border-color: var(--planon-gray-300); }
+  .btn-ghost:hover { background: var(--planon-gray-100); }
+  .btn-danger { background: var(--planon-error); color: white; border-color: var(--planon-error); }
+  .btn-warning { background: var(--planon-warn); color: white; border-color: var(--planon-warn); }
+  .btn-success { background: var(--planon-success); color: white; border-color: var(--planon-success); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* ─── Coordinate panel ─── */
+  .coord-panel {
+    background: var(--planon-gray-100);
+    border: 1px solid var(--planon-gray-300);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    margin-bottom: 20px;
+  }
+  .coord-panel-title {
+    font-size: 11px; font-weight: 700;
+    color: var(--planon-gray-700);
+    text-transform: uppercase; letter-spacing: .5px;
+    margin-bottom: 10px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .coord-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 10px; align-items: end;
+  }
+  .coord-status-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 10px;
+    font-size: 11px; font-weight: 600;
+  }
+  .coord-status-badge.geocoded { background: var(--planon-success-lt); color: var(--planon-success); }
+  .coord-status-badge.manual   { background: var(--planon-warn-lt);    color: var(--planon-warn); }
+  .coord-status-badge.none     { background: var(--planon-gray-100);   color: var(--planon-gray-500); border: 1px solid var(--planon-gray-300); }
+
+  /* ─── Map panel ─── */
+  .map-card { overflow: hidden; border-radius: var(--radius-lg); }
+  .map-container {
+    height: 320px;
+    width: 100%;
+    position: relative;
+  }
+  #map { width: 100%; height: 100%; }
+
+  .map-toolbar {
+    padding: 10px 14px;
+    background: var(--planon-gray-100);
+    border-top: 1px solid var(--planon-gray-300);
+    display: flex; align-items: center; gap: 8px;
+    flex-wrap: wrap;
+  }
+  .map-toolbar-label {
+    font-size: 11px; font-weight: 600;
+    color: var(--planon-gray-500); text-transform: uppercase; letter-spacing: .4px;
+    flex-shrink: 0;
+  }
+
+  .map-mode-btn {
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--planon-gray-300);
+    background: var(--planon-white);
+    color: var(--planon-gray-700);
+    cursor: pointer; transition: all .15s;
+  }
+  .map-mode-btn.active { background: var(--planon-blue); color: white; border-color: var(--planon-blue); }
+  .map-mode-btn:hover:not(.active) { background: var(--planon-blue-pale); color: var(--planon-blue); border-color: var(--planon-blue); }
+
+  .map-info-strip {
+    padding: 8px 14px;
+    font-size: 11.5px;
+    color: var(--planon-gray-500);
+    background: var(--planon-white);
+    border-top: 1px solid var(--planon-gray-100);
+    display: flex; align-items: center; gap: 6px;
+    min-height: 32px;
+  }
+
+  /* ─── Toast notification ─── */
+  #toast-container {
+    position: fixed; bottom: 24px; right: 24px;
+    z-index: 9999; display: flex; flex-direction: column; gap: 8px;
+  }
+  .toast {
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    font-size: 13px; font-weight: 500;
+    display: flex; align-items: center; gap: 10px;
+    min-width: 260px; max-width: 380px;
+    animation: slideIn .25s ease;
+    transition: opacity .3s;
+  }
+  .toast.success { background: var(--planon-success); color: white; }
+  .toast.warning { background: var(--planon-warn);    color: white; }
+  .toast.error   { background: var(--planon-error);   color: white; }
+  .toast.info    { background: var(--planon-navy);    color: white; }
+  @keyframes slideIn { from { transform: translateX(30px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  /* ─── Field data model reference tab ─── */
+  .model-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 800px) { .model-grid { grid-template-columns: 1fr 1fr; } }
+
+  .model-card {
+    border: 1px solid var(--planon-gray-300);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--planon-white);
+  }
+  .model-card-head {
+    background: var(--planon-navy);
+    color: white;
+    padding: 8px 12px;
+    font-size: 12px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .4px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .model-card-body { padding: 10px 12px; }
+  .model-field-row {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--planon-gray-100);
+    gap: 8px;
+  }
+  .model-field-row:last-child { border-bottom: none; }
+  .model-field-name { font-size: 12px; font-weight: 600; color: var(--planon-gray-900); font-family: 'Consolas', monospace; }
+  .model-field-type {
+    font-size: 10px; padding: 1px 5px; border-radius: 3px;
+    font-weight: 700; text-transform: uppercase; flex-shrink: 0;
+  }
+  .type-str  { background: #E0F0FF; color: #005580; }
+  .type-enum { background: #EDE9FE; color: #5B21B6; }
+  .type-num  { background: #FEF3C7; color: #92400E; }
+  .type-bool { background: #D1FAE5; color: #065F46; }
+  .type-ref  { background: #FFE4E6; color: #9F1239; }
+  .model-field-desc { font-size: 11px; color: var(--planon-gray-500); margin-top: 2px; }
+
+  .tag {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 7px; border-radius: 10px;
+    font-size: 10.5px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .2px;
+  }
+  .tag-new     { background: var(--planon-blue-pale);  color: var(--planon-blue); }
+  .tag-enhance { background: var(--planon-success-lt); color: var(--planon-success); }
+  .tag-remove  { background: var(--planon-error-lt);   color: var(--planon-error); }
+
+  /* ─── Status bar ─── */
+  .status-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px;
+    background: var(--planon-success-lt);
+    border: 1px solid #A7D7B8;
+    border-radius: var(--radius-md);
+    font-size: 12px; color: var(--planon-success);
+    font-weight: 500;
+    margin-top: 16px;
+    display: none;
+  }
+  .status-bar.visible { display: flex; }
+
+  /* ─── Spinner ─── */
+  .spin {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    display: inline-block;
+  }
+  .spin.dark {
+    border: 2px solid var(--planon-gray-300);
+    border-top-color: var(--planon-blue);
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── Disclaimer banner ─── */
+  .info-banner {
+    display: flex; gap: 10px; align-items: flex-start;
+    background: var(--planon-blue-pale);
+    border: 1px solid #B3CFF0;
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    margin-bottom: 20px;
+    font-size: 12.5px;
+    color: var(--planon-navy);
+    line-height: 1.5;
+  }
+  .info-banner-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+</style>
+</head>
+<body>
+
+<!-- ─── Top Bar ─── -->
+<div class="topbar">
+  <div class="topbar-logo">
+    <!-- Planon P icon approximation -->
+    <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="28" height="28" rx="5" fill="#004EA8"/>
+      <path d="M8 22V6h8.5c3.5 0 5.5 1.8 5.5 4.8s-2 4.8-5.5 4.8H12v6.4H8z" fill="white"/>
+      <path d="M12 12.6h4.2c1.5 0 2.3-.7 2.3-1.8s-.8-1.8-2.3-1.8H12v3.6z" fill="#0072CE"/>
+    </svg>
+    <div>
+      <div class="topbar-logo-text">Planon</div>
+      <div class="topbar-logo-sub">Universe</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span>Supporting Data</span>
+    <span class="topbar-badge">⬡ Concept Preview</span>
+    <span>👤 Administrator</span>
+  </div>
+</div>
+
+<!-- ─── Breadcrumb ─── -->
+<div class="breadcrumb">
+  <a href="#">Supporting Data</a>
+  <span class="breadcrumb-sep">›</span>
+  <a href="#">Countries &amp; Cities</a>
+  <span class="breadcrumb-sep">›</span>
+  <span class="breadcrumb-current">Geographic Location — Amsterdam HQ</span>
+</div>
+
+<!-- ─── Page ─── -->
+<div class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-title">🌍 Geographic Location</div>
+      <div class="page-subtitle">Property: Amsterdam HQ &nbsp;·&nbsp; Business Object: Property &nbsp;·&nbsp; Module: Real Estate Management</div>
+    </div>
+    <div class="page-actions">
+      <button class="btn btn-ghost" onclick="clearAll()">✕ Clear</button>
+      <button class="btn btn-secondary" onclick="showTab('model')">📋 Field Model</button>
+      <button class="btn btn-primary" onclick="saveRecord()">💾 Save</button>
+    </div>
+  </div>
+
+  <!-- ─── Tabs ─── -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('entry')" id="tab-entry">📍 Address Entry</button>
+    <button class="tab-btn" onclick="showTab('model')" id="tab-model">📐 Global Field Model</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ TAB 1: Address Entry -->
+  <div class="tab-panel active" id="panel-entry">
+    <div class="main-grid">
+
+      <!-- LEFT: Form -->
+      <div>
+        <!-- Search -->
+        <div class="card" style="margin-bottom:18px">
+          <div class="card-header">
+            <span class="card-header-icon">🔍</span>
+            <span class="card-header-title">Address Search & Autocomplete</span>
+            <span class="card-header-badge">Powered by OpenStreetMap</span>
+          </div>
+          <div class="card-body">
+            <div class="info-banner">
+              <span class="info-banner-icon">ℹ️</span>
+              <span>Start typing any address, city or landmark. Select from suggestions to auto-populate all geographic fields below. You may then adjust individual fields or manually reposition the map pin.</span>
+            </div>
+
+            <div class="search-wrapper" id="search-wrapper">
+              <input type="text" class="search-input" id="address-search"
+                placeholder="e.g.  Eiffel Tower, Paris  ·  1600 Pennsylvania Ave  ·  Schiphol Airport"
+                autocomplete="off"
+                oninput="handleSearchInput(this.value)"
+                onkeydown="handleSearchKey(event)" />
+              <button class="search-btn" id="search-btn" onclick="doSearch()">
+                <span id="search-btn-text">Search</span>
+              </button>
+              <div class="autocomplete-dropdown" id="autocomplete-dropdown"></div>
+            </div>
+
+            <div id="validation-status" class="status-bar">
+              ✅ Address validated and geocoded via OpenStreetMap Nominatim
+            </div>
+          </div>
+        </div>
+
+        <!-- Structured address fields -->
+        <div class="card" style="margin-bottom:18px">
+          <div class="card-header">
+            <span class="card-header-icon">📬</span>
+            <span class="card-header-title">Structured Address Fields</span>
+          </div>
+          <div class="card-body">
+
+            <div class="section-title">🏠 Street &amp; Building</div>
+            <div class="field-group cols-4">
+              <div class="field">
+                <label class="field-label">Street Name</label>
+                <input type="text" id="f-street-name" placeholder="e.g. Herengracht" />
+              </div>
+              <div class="field">
+                <label class="field-label">House / Bldg Nr <span class="required">*</span></label>
+                <input type="text" id="f-street-nr" placeholder="e.g. 182" />
+              </div>
+              <div class="field">
+                <label class="field-label">Nr Suffix</label>
+                <input type="text" id="f-street-suffix" placeholder="A, B, bis…" />
+              </div>
+              <div class="field">
+                <label class="field-label">Floor / Unit</label>
+                <input type="text" id="f-floor" placeholder="e.g. 3rd floor" />
+              </div>
+            </div>
+            <div class="field-group cols-1" style="margin-bottom:8px">
+              <div class="field">
+                <label class="field-label">Address Line 1 <span class="required">*</span></label>
+                <input type="text" id="f-line1" placeholder="Full street address line 1" />
+              </div>
+            </div>
+            <div class="field-group cols-1" style="margin-bottom:0">
+              <div class="field">
+                <label class="field-label">Address Line 2 <span class="info-badge" style="margin-left:4px">Optional</span></label>
+                <input type="text" id="f-line2" placeholder="Suite, building name, campus…" />
+              </div>
+            </div>
+
+            <div class="section-divider"></div>
+            <div class="section-title">📮 Postal &amp; Locality</div>
+            <div class="field-group cols-4">
+              <div class="field">
+                <label class="field-label">Postal Code</label>
+                <input type="text" id="f-postal" placeholder="e.g. 1016 BS" />
+              </div>
+              <div class="field">
+                <label class="field-label">Postal Suffix</label>
+                <input type="text" id="f-postal-suffix" placeholder="ZIP+4, etc." />
+              </div>
+              <div class="field" style="grid-column: span 2">
+                <label class="field-label">City / Locality <span class="required">*</span></label>
+                <input type="text" id="f-city" placeholder="e.g. Amsterdam" />
+              </div>
+            </div>
+            <div class="field-group">
+              <div class="field">
+                <label class="field-label">Sub-locality / District</label>
+                <input type="text" id="f-sublocality" placeholder="Neighbourhood, ward…" />
+              </div>
+              <div class="field">
+                <label class="field-label">Municipality</label>
+                <input type="text" id="f-municipality" placeholder="e.g. Amsterdam" />
+              </div>
+            </div>
+
+            <div class="section-divider"></div>
+            <div class="section-title">🗺️ Administrative Divisions <span style="font-size:11px;font-weight:400;color:var(--planon-gray-500);text-transform:none;letter-spacing:0">— Labels adapt per country</span></div>
+            <div class="field-group cols-3">
+              <div class="field">
+                <label class="field-label" id="lbl-adm1">Admin Level 1 <span class="info-badge" id="lbl-adm1-eg">Province</span></label>
+                <input type="text" id="f-adm1" placeholder="Province / State / Region…" />
+              </div>
+              <div class="field">
+                <label class="field-label" id="lbl-adm2">Admin Level 2 <span class="info-badge" id="lbl-adm2-eg">County</span></label>
+                <input type="text" id="f-adm2" placeholder="County / District…" />
+              </div>
+              <div class="field">
+                <label class="field-label" id="lbl-adm3">Admin Level 3 <span class="info-badge" id="lbl-adm3-eg">Commune</span></label>
+                <input type="text" id="f-adm3" placeholder="Commune / Township…" />
+              </div>
+            </div>
+
+            <div class="section-divider"></div>
+            <div class="section-title">🌐 Country &amp; Geopolitical Context</div>
+            <div class="field-group cols-3">
+              <div class="field" style="grid-column: span 2">
+                <label class="field-label">Country / Territory Display Name <span class="required">*</span></label>
+                <input type="text" id="f-country" placeholder="e.g. Netherlands" />
+              </div>
+              <div class="field">
+                <label class="field-label">ISO 3166-1 Code <span class="info-badge">Alpha-2</span></label>
+                <input type="text" id="f-country-code" placeholder="NL" maxlength="2" style="text-transform:uppercase" />
+              </div>
+            </div>
+            <div class="field-group cols-3">
+              <div class="field">
+                <label class="field-label">Sovereignty Status</label>
+                <select id="f-sovereignty">
+                  <option value="">— select —</option>
+                  <option value="independent">Independent State</option>
+                  <option value="territory">Territory / Dependency</option>
+                  <option value="disputed">Disputed / Contested</option>
+                  <option value="autonomous">Autonomous Region</option>
+                  <option value="sar">Special Admin. Region</option>
+                  <option value="federal">Federal Subject</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field-label">Display Context <span class="tooltip-icon" title="Controls how this location is labeled in different locale contexts">?</span></label>
+                <select id="f-display-context">
+                  <option value="global">Global (Neutral)</option>
+                  <option value="us">North American</option>
+                  <option value="eu">European</option>
+                  <option value="cn">Chinese</option>
+                  <option value="custom">Custom per BU</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field-label">Continent</label>
+                <select id="f-continent">
+                  <option value="">— select —</option>
+                  <option value="AF">Africa</option>
+                  <option value="AN">Antarctica</option>
+                  <option value="AS">Asia</option>
+                  <option value="EU">Europe</option>
+                  <option value="NA">North America</option>
+                  <option value="OC">Oceania</option>
+                  <option value="SA">South America</option>
+                </select>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Coordinates -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-header-icon">📡</span>
+            <span class="card-header-title">Geospatial Coordinates</span>
+          </div>
+          <div class="card-body">
+            <div class="coord-panel">
+              <div class="coord-panel-title">
+                <span>WGS84 Decimal Degrees</span>
+                <span class="coord-status-badge none" id="coord-status-badge">⬤ Not set</span>
+              </div>
+              <div class="coord-row">
+                <div class="field">
+                  <label class="field-label">Latitude</label>
+                  <input type="number" id="f-lat" placeholder="e.g. 52.370216"
+                    step="0.000001" min="-90" max="90"
+                    oninput="onManualCoordChange()" />
+                </div>
+                <div class="field">
+                  <label class="field-label">Longitude</label>
+                  <input type="number" id="f-lng" placeholder="e.g. 4.895168"
+                    step="0.000001" min="-180" max="180"
+                    oninput="onManualCoordChange()" />
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="applyManualCoords()" title="Apply manually entered coordinates to map">📌 Apply</button>
+              </div>
+              <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <button class="btn btn-ghost btn-sm" onclick="doReverseGeocode()">🔄 Reverse Geocode</button>
+                <button class="btn btn-ghost btn-sm" onclick="resetCoordinatesToAddress()">↩ Reset to Address</button>
+                <span id="coord-source-label" style="font-size:11px;color:var(--planon-gray-500);margin-left:auto"></span>
+              </div>
+            </div>
+
+            <div class="field-group cols-3">
+              <div class="field">
+                <label class="field-label">Altitude (m)</label>
+                <input type="number" id="f-alt" placeholder="e.g. 12" step="0.1" />
+              </div>
+              <div class="field">
+                <label class="field-label">Coord. Accuracy</label>
+                <select id="f-coord-accuracy">
+                  <option value="">— unknown —</option>
+                  <option value="geocoded">Geocoded (address)</option>
+                  <option value="gps">GPS / Survey</option>
+                  <option value="manual_pin">Manual pin</option>
+                  <option value="approximate">Approximate</option>
+                  <option value="inherited">Inherited from City</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="field-label">Plus Code <span class="info-badge">Google OLC</span></label>
+                <input type="text" id="f-pluscode" placeholder="e.g. 9F469W74+44" readonly class="readonly" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Map -->
+      <div style="position:sticky;top:72px">
+        <div class="card map-card">
+          <div class="card-header">
+            <span class="card-header-icon">🗺️</span>
+            <span class="card-header-title">Map Preview</span>
+            <span class="card-header-badge" id="map-zoom-badge">Zoom —</span>
+          </div>
+          <div class="map-container">
+            <div id="map"></div>
+          </div>
+          <div class="map-toolbar">
+            <span class="map-toolbar-label">Pin mode:</span>
+            <button class="map-mode-btn active" id="mode-view-btn" onclick="setMapMode('view')">👁 View</button>
+            <button class="map-mode-btn" id="mode-drag-btn" onclick="setMapMode('drag')">✋ Drag Pin</button>
+            <button class="map-mode-btn" id="mode-click-btn" onclick="setMapMode('click')">🖱 Click to Place</button>
+          </div>
+          <div class="map-info-strip" id="map-info-strip">
+            <span style="color:var(--planon-gray-300)">●</span> No location set — use address search or enter coordinates
+          </div>
+        </div>
+
+        <!-- Reverse geocode result preview -->
+        <div class="card" id="reverse-preview-card" style="margin-top:14px;display:none">
+          <div class="card-header" style="padding:10px 14px">
+            <span class="card-header-icon">🔄</span>
+            <span class="card-header-title">Reverse Geocode Result</span>
+          </div>
+          <div class="card-body" style="padding:14px">
+            <div id="reverse-preview-content" style="font-size:12.5px;line-height:1.6;color:var(--planon-gray-700)"></div>
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <button class="btn btn-success btn-sm" onclick="applyReverseResult()">✔ Apply to Fields</button>
+              <button class="btn btn-ghost btn-sm" onclick="dismissReversePreview()">✕ Dismiss</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Map legend / coordinate display -->
+        <div class="card" style="margin-top:14px">
+          <div class="card-body" style="padding:14px">
+            <div style="font-size:11px;font-weight:700;color:var(--planon-gray-500);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Pin Location</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <div>
+                <div style="font-size:10px;color:var(--planon-gray-500)">Latitude</div>
+                <div style="font-size:14px;font-weight:700;color:var(--planon-navy);font-family:monospace" id="pin-lat-display">—</div>
+              </div>
+              <div>
+                <div style="font-size:10px;color:var(--planon-gray-500)">Longitude</div>
+                <div style="font-size:14px;font-weight:700;color:var(--planon-navy);font-family:monospace" id="pin-lng-display">—</div>
+              </div>
+            </div>
+            <div style="margin-top:8px;font-size:11.5px;color:var(--planon-gray-500)" id="address-lock-info">
+              <span style="color:var(--planon-gray-300)">⬡</span> Address not validated
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ TAB 2: Field Model -->
+  <div class="tab-panel" id="panel-model">
+    <div class="info-banner" style="margin-bottom:20px">
+      <span class="info-banner-icon">💡</span>
+      <div>
+        <strong>Global Geographic Field Model Proposal</strong> — This model addresses multinational flexibility, geopolitical sensitivity (e.g., Taiwan/Province vs Country), address inheritance, and modern geocoding integration.
+        <span class="tag tag-new" style="margin-left:6px">New fields</span>
+        <span class="tag tag-enhance" style="margin-left:4px">Enhanced</span>
+        <span class="tag tag-remove" style="margin-left:4px">Deprecated</span>
+      </div>
+    </div>
+
+    <div class="model-grid">
+
+      <div class="model-card">
+        <div class="model-card-head">📬 Street &amp; Building</div>
+        <div class="model-card-body">
+          <div class="model-field-row"><div><div class="model-field-name">streetName</div><div class="model-field-desc">Parsed street name only</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">streetNumber</div><div class="model-field-desc">House / building number</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">streetNumberSuffix <span class="tag tag-new">NEW</span></div><div class="model-field-desc">A, B, bis, ½, etc.</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">addressLine1</div><div class="model-field-desc">Full primary address line</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">addressLine2</div><div class="model-field-desc">Suite, unit, floor</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">addressLine3 <span class="tag tag-new">NEW</span></div><div class="model-field-desc">Building name, campus</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">poBox</div><div class="model-field-desc">Post Office Box number</div></div><span class="model-field-type type-str">STR</span></div>
+        </div>
+      </div>
+
+      <div class="model-card">
+        <div class="model-card-head">📮 Postal &amp; Locality</div>
+        <div class="model-card-body">
+          <div class="model-field-row"><div><div class="model-field-name">postalCode</div><div class="model-field-desc">National postal / ZIP code</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">postalCodeSuffix <span class="tag tag-new">NEW</span></div><div class="model-field-desc">Extension, e.g. ZIP+4</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">locality</div><div class="model-field-desc">City / town / village</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">subLocality <span class="tag tag-new">NEW</span></div><div class="model-field-desc">Neighbourhood, ward, district</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">municipality <span class="tag tag-enhance">↑</span></div><div class="model-field-desc">Municipal authority (may differ from city)</div></div><span class="model-field-type type-ref">REF</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">cityCode <span class="tag tag-new">NEW</span></div><div class="model-field-desc">UN/LOCODE or IATA city code</div></div><span class="model-field-type type-str">STR</span></div>
+        </div>
+      </div>
+
+      <div class="model-card">
+        <div class="model-card-head">🗂 Administrative Levels</div>
+        <div class="model-card-body">
+          <div class="model-field-row"><div><div class="model-field-name">adminLevel1 <span class="tag tag-enhance">↑</span></div><div class="model-field-desc">State / Province / Region / Oblast</div></div><span class="model-field-type type-ref">REF</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">adminLevel1Label <span class="tag tag-new">NEW</span></div><div class="model-field-desc">Configurable label: "State", "Province"…</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">adminLevel2 <span class="tag tag-new">NEW</span></div><div class="model-field-desc">County / District / Prefecture</div></div><span class="model-field-type type-ref">REF</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">adminLevel2Label <span class="tag tag-new">NEW</span></div><div class="model-field-desc">Configurable label: "County", "District"…</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">adminLevel3 <span class="tag tag-new">NEW</span></div><div class="model-field-desc">Commune / Township / Tehsil</div></div><span class="model-field-type type-ref">REF</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">adminLevel3Label <span class="tag tag-new">NEW</span></div><div class="model-field-desc">Configurable label: "Commune"…</div></div><span class="model-field-type type-str">STR</span></div>
+        </div>
+      </div>
+
+      <div class="model-card">
+        <div class="model-card-head">🌐 Country &amp; Geopolitics</div>
+        <div class="model-card-body">
+          <div class="model-field-row"><div><div class="model-field-name">countryCode</div><div class="model-field-desc">ISO 3166-1 alpha-2 (neutral key)</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">countryDisplayName <span class="tag tag-enhance">↑</span></div><div class="model-field-desc">Tenant/locale-configurable display name</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">sovereigntyStatus <span class="tag tag-new">NEW</span></div><div class="model-field-desc">independent / territory / disputed / autonomous / SAR</div></div><span class="model-field-type type-enum">ENUM</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">geopoliticalContext <span class="tag tag-new">NEW</span></div><div class="model-field-desc">JSON map: locale → display name (e.g. TW for CN = "台湾省")</div></div><span class="model-field-type type-str">JSON</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">continent <span class="tag tag-new">NEW</span></div><div class="model-field-desc">ISO continent code: EU, AS, NA…</div></div><span class="model-field-type type-enum">ENUM</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">timeZone <span class="tag tag-new">NEW</span></div><div class="model-field-desc">IANA tz: "Europe/Amsterdam"</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">currencyCode <span class="tag tag-new">NEW</span></div><div class="model-field-desc">ISO 4217 currency: EUR, USD…</div></div><span class="model-field-type type-str">STR</span></div>
+        </div>
+      </div>
+
+      <div class="model-card">
+        <div class="model-card-head">📡 Geospatial</div>
+        <div class="model-card-body">
+          <div class="model-field-row"><div><div class="model-field-name">latitude</div><div class="model-field-desc">WGS84 decimal degrees</div></div><span class="model-field-type type-num">NUM</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">longitude</div><div class="model-field-desc">WGS84 decimal degrees</div></div><span class="model-field-type type-num">NUM</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">altitude <span class="tag tag-new">NEW</span></div><div class="model-field-desc">Elevation in metres (MSL)</div></div><span class="model-field-type type-num">NUM</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">coordinateAccuracy <span class="tag tag-new">NEW</span></div><div class="model-field-desc">geocoded / gps / manual_pin / approximate</div></div><span class="model-field-type type-enum">ENUM</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">coordinateSource <span class="tag tag-new">NEW</span></div><div class="model-field-desc">geocoding_svc / gps / manual / cadastral</div></div><span class="model-field-type type-enum">ENUM</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">plusCode <span class="tag tag-new">NEW</span></div><div class="model-field-desc">Google Open Location Code</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">geohash <span class="tag tag-new">NEW</span></div><div class="model-field-desc">Geohash for spatial indexing</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">boundingBox <span class="tag tag-new">NEW</span></div><div class="model-field-desc">N/S/E/W for area coverage</div></div><span class="model-field-type type-str">JSON</span></div>
+        </div>
+      </div>
+
+      <div class="model-card">
+        <div class="model-card-head">🔗 Metadata &amp; Inheritance</div>
+        <div class="model-card-body">
+          <div class="model-field-row"><div><div class="model-field-name">validationStatus <span class="tag tag-new">NEW</span></div><div class="model-field-desc">unvalidated / validated / override / stale</div></div><span class="model-field-type type-enum">ENUM</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">validationSource <span class="tag tag-new">NEW</span></div><div class="model-field-desc">OSM / Google / HERE / Manual</div></div><span class="model-field-type type-str">STR</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">validationTimestamp <span class="tag tag-new">NEW</span></div><div class="model-field-desc">Last geocoding date/time</div></div><span class="model-field-type type-str">DATE</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">inheritFromCity <span class="tag tag-new">NEW</span></div><div class="model-field-desc">Auto-populate from City BO reference</div></div><span class="model-field-type type-bool">BOOL</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">cityRef <span class="tag tag-enhance">↑</span></div><div class="model-field-desc">FK → City BO (drives inheritance)</div></div><span class="model-field-type type-ref">REF</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">countryRef <span class="tag tag-enhance">↑</span></div><div class="model-field-desc">FK → Country BO</div></div><span class="model-field-type type-ref">REF</span></div>
+          <div class="model-field-row"><div><div class="model-field-name">externalId <span class="tag tag-new">NEW</span></div><div class="model-field-desc">OSM / GeoNames / GeoID reference</div></div><span class="model-field-type type-str">STR</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Design principles -->
+    <div style="margin-top:24px;background:var(--planon-white);border:1px solid var(--planon-gray-300);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-sm)">
+      <div class="card-header">
+        <span class="card-header-icon">📐</span>
+        <span class="card-header-title">Design Principles &amp; Rationale</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0">
+        <div style="padding:18px 20px;border-right:1px solid var(--planon-gray-100)">
+          <div class="section-title">🌍 Geopolitical Neutrality</div>
+          <p style="font-size:13px;line-height:1.65;color:var(--planon-gray-700)">
+            The <code style="background:var(--planon-gray-100);padding:1px 4px;border-radius:3px;font-size:12px">countryCode</code> stores a neutral ISO key that never changes regardless of political context. The <code style="background:var(--planon-gray-100);padding:1px 4px;border-radius:3px;font-size:12px">geopoliticalContext</code> JSON field stores locale-specific display names, enabling Taiwan to appear as "Taiwan" for EU users and "台湾省" for users in China — both driven from the same underlying data record. The <code style="background:var(--planon-gray-100);padding:1px 4px;border-radius:3px;font-size:12px">sovereigntyStatus</code> enum further disambiguates territories, SAR's, autonomous regions and disputed areas.
+          </p>
+        </div>
+        <div style="padding:18px 20px">
+          <div class="section-title">🔄 Inheritance &amp; Staleness</div>
+          <p style="font-size:13px;line-height:1.65;color:var(--planon-gray-700)">
+            The <code style="background:var(--planon-gray-100);padding:1px 4px;border-radius:3px;font-size:12px">inheritFromCity</code> flag, when enabled, propagates municipality, admin division, country, time zone, and currency from the City BO reference. When the City BO is updated (e.g. a municipality boundary changes), downstream BOs automatically show a <em>stale</em> validation status badge, prompting re-validation — preventing silent data drift across large portfolios.
+          </p>
+        </div>
+        <div style="padding:18px 20px;border-right:1px solid var(--planon-gray-100);border-top:1px solid var(--planon-gray-100)">
+          <div class="section-title">📮 Flexible Address Labels</div>
+          <p style="font-size:13px;line-height:1.65;color:var(--planon-gray-700)">
+            The three-level administrative hierarchy uses configurable label fields (<code style="background:var(--planon-gray-100);padding:1px 4px;border-radius:3px;font-size:12px">adminLevel1Label</code>, etc.) driven by the country reference. A US property shows "State / County / Township"; a Dutch one shows "Province / Gemeente / Wijk"; a Japanese one shows "都道府県 / 市区町村". This eliminates hard-coded "State" or "Province" fields that confuse global users.
+          </p>
+        </div>
+        <div style="padding:18px 20px;border-top:1px solid var(--planon-gray-100)">
+          <div class="section-title">📡 Coordinate Provenance</div>
+          <p style="font-size:13px;line-height:1.65;color:var(--planon-gray-700)">
+            The <code style="background:var(--planon-gray-100);padding:1px 4px;border-radius:3px;font-size:12px">coordinateAccuracy</code> and <code style="background:var(--planon-gray-100);padding:1px 4px;border-radius:3px;font-size:12px">coordinateSource</code> fields distinguish between auto-geocoded, GPS-surveyed, and manually pinned coordinates — critical for space utilisation analytics, IoT sensor placement, and emergency response routing. Moving the pin manually sets accuracy to <em>manual_pin</em> while preserving the validated postal address, preventing accidental data corruption.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Toast container ─── -->
+<div id="toast-container"></div>
+
+<script>
+/* ════════════════════════════════════════════════════════════
+   STATE
+════════════════════════════════════════════════════════════ */
+let map, marker;
+let mapMode = 'view'; // 'view' | 'drag' | 'click'
+let validatedLat = null, validatedLng = null;  // coordinates from geocoding
+let currentLat = null, currentLng = null;       // current pin position (may differ if dragged)
+let addressValidated = false;
+let pendingReverseResult = null;
+let searchDebounce = null;
+
+const adminLabels = {
+  // countryCode -> [L1 label, L1 example, L2 label, L2 example, L3 label, L3 example]
+  'NL': ['Province','Noord-Holland','Municipality','Gemeente','Sub-district','Wijk'],
+  'US': ['State','California','County','Los Angeles County','Township','Beverly Hills Township'],
+  'DE': ['Federal State','Bayern','District','Landkreis München','Municipality','Gemeinde'],
+  'FR': ['Region','Île-de-France','Department','Paris (75)','Commune','Paris 1er'],
+  'GB': ['Country','England','County','Greater London','District','City of London'],
+  'CN': ['Province / Municipality','Beijing','Prefecture','Beijing City','County','Dongcheng'],
+  'TW': ['Administrative Region','Taipei City','District','Zhongzheng District','Village','里'],
+  'AU': ['State / Territory','New South Wales','Region','Greater Sydney','LGA','City of Sydney'],
+  'JP': ['Prefecture (都道府県)','東京都','City (市区町村)','新宿区','Ward','丁目'],
+  'IN': ['State','Maharashtra','District','Mumbai District','Taluk','Andheri'],
+  'BR': ['State (Estado)','São Paulo','Mesoregion','Metropolitana SP','Municipality','São Paulo'],
+  'default': ['Admin Level 1','Province / State','Admin Level 2','County / District','Admin Level 3','Commune / Township']
+};
+
+/* ════════════════════════════════════════════════════════════
+   MAP INIT
+════════════════════════════════════════════════════════════ */
+function initMap() {
+  map = L.map('map', { zoomControl: true, attributionControl: true });
+  map.setView([20, 0], 2);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+    maxZoom: 19
+  }).addTo(map);
+
+  // Custom Planon-colored marker icon
+  const icon = L.divIcon({
+    html: `<div style="
+      width:28px;height:38px;position:relative;
+      filter:drop-shadow(0 3px 6px rgba(0,40,85,.4))">
+      <svg viewBox="0 0 28 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M14 0C6.3 0 0 6.3 0 14c0 9.8 14 24 14 24S28 23.8 28 14C28 6.3 21.7 0 14 0z" fill="#004EA8"/>
+        <circle cx="14" cy="14" r="6" fill="white"/>
+        <circle cx="14" cy="14" r="3" fill="#E87722"/>
+      </svg>
+    </div>`,
+    className: '',
+    iconSize: [28, 38],
+    iconAnchor: [14, 38],
+    popupAnchor: [0, -38]
+  });
+
+  marker = L.marker([20, 0], { icon, draggable: false }).addTo(map);
+  marker.setOpacity(0);
+
+  marker.on('dragend', function(e) {
+    const pos = e.target.getLatLng();
+    setCurrentCoords(pos.lat, pos.lng, 'manual_pin', false);
+    updatePinDisplay(pos.lat, pos.lng);
+    setCoordBadge('manual');
+    updateAddressLockInfo();
+    toast('📌 Pin moved. Address fields preserved. Use Reverse Geocode to update address.', 'warning');
+  });
+
+  map.on('click', function(e) {
+    if (mapMode !== 'click') return;
+    placeMarkerAt(e.latlng.lat, e.latlng.lng, 'manual_pin');
+    toast('📌 Location placed. Use Reverse Geocode to populate address fields.', 'warning');
+  });
+
+  map.on('zoomend', function() {
+    document.getElementById('map-zoom-badge').textContent = 'Zoom ' + map.getZoom();
+  });
+}
+
+/* ════════════════════════════════════════════════════════════
+   MAP CONTROLS
+════════════════════════════════════════════════════════════ */
+function setMapMode(mode) {
+  mapMode = mode;
+  ['view','drag','click'].forEach(m => {
+    document.getElementById('mode-'+m+'-btn').classList.toggle('active', m === mode);
+  });
+  if (mode === 'drag') {
+    marker.dragging.enable();
+    map.getContainer().style.cursor = 'grab';
+    document.getElementById('map-info-strip').innerHTML =
+      '<span style="color:var(--planon-warn)">✋</span> Drag the pin to adjust location · Address fields will be preserved';
+  } else {
+    marker.dragging.disable();
+    map.getContainer().style.cursor = mode === 'click' ? 'crosshair' : '';
+    if (mode === 'click') {
+      document.getElementById('map-info-strip').innerHTML =
+        '<span style="color:var(--planon-blue-light)">🖱</span> Click anywhere on the map to place pin';
+    } else {
+      updateMapInfoStrip();
+    }
+  }
+}
+
+function placeMarkerAt(lat, lng, accuracy) {
+  currentLat = lat;
+  currentLng = lng;
+  marker.setLatLng([lat, lng]);
+  marker.setOpacity(1);
+  map.setView([lat, lng], Math.max(map.getZoom(), 14));
+  setField('f-lat', lat.toFixed(6));
+  setField('f-lng', lng.toFixed(6));
+  setField('f-coord-accuracy', accuracy || 'geocoded');
+  updatePinDisplay(lat, lng);
+  updateMapInfoStrip();
+}
+
+function updateMapInfoStrip() {
+  const strip = document.getElementById('map-info-strip');
+  if (!currentLat) {
+    strip.innerHTML = '<span style="color:var(--planon-gray-300)">●</span> No location set';
+    return;
+  }
+  strip.innerHTML = `<span style="color:var(--planon-success)">●</span> ${currentLat.toFixed(5)}, ${currentLng.toFixed(5)} · OSM / Leaflet`;
+}
+
+function updatePinDisplay(lat, lng) {
+  document.getElementById('pin-lat-display').textContent = lat.toFixed(6);
+  document.getElementById('pin-lng-display').textContent = lng.toFixed(6);
+}
+
+function setCoordBadge(type) {
+  const b = document.getElementById('coord-status-badge');
+  if (type === 'geocoded') { b.className = 'coord-status-badge geocoded'; b.textContent = '⬤ Geocoded'; }
+  else if (type === 'manual') { b.className = 'coord-status-badge manual'; b.textContent = '⬤ Manual Pin'; }
+  else { b.className = 'coord-status-badge none'; b.textContent = '⬤ Not set'; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   IP GEOLOCATION — bias search results to user's country
+   Uses ip-api.com (free, no key, no browser permissions)
+════════════════════════════════════════════════════════════ */
+let userCountryCode = '';   // ISO alpha-2 from IP lookup
+let userCountryName = '';
+let ipLookupDone = false;
+
+async function detectUserCountry() {
+  try {
+    const res = await fetch('https://ip-api.com/json/?fields=countryCode,country,lat,lon');
+    const d = await res.json();
+    if (d.countryCode) {
+      userCountryCode = d.countryCode;
+      userCountryName = d.country;
+      ipLookupDone = true;
+      // Silently update placeholder to hint at local bias
+      const el = document.getElementById('address-search');
+      if (el) el.placeholder = `Search address${userCountryName ? ' — results prioritise ' + userCountryName : ''}…`;
+    }
+  } catch(e) { /* silent fail — search still works globally */ }
+}
+
+/* ════════════════════════════════════════════════════════════
+   COUNTRIES USING NUMBER-FIRST FORMAT
+   (street number before street name)
+════════════════════════════════════════════════════════════ */
+const numberFirstCountries = new Set([
+  'US','CA','AU','NZ','GB','IE','SG','HK','MY','PH','IN','PK','BD',
+  'ZA','NG','GH','KE','TZ','UG','ZW','IL','AE','SA','QA','KW','BH',
+  'OM','JO','IQ','IR','AF','MM','KH','VN','TH','ID','JP','KR','CN',
+  'TW','MX','AR','CL','CO','PE','VE','EC','BO','PY','UY','GT','HN',
+  'SV','NI','CR','PA','CU','DO','PR','TT','JM','BB','GD','LC','VC',
+  'AG','BS','KY','TC','BZ','GY','SR'
+]);
+
+function isNumberFirst(cc) {
+  return numberFirstCountries.has((cc || '').toUpperCase());
+}
+
+/* ════════════════════════════════════════════════════════════
+   FORMAT AUTOCOMPLETE MAIN LINE
+   Smart display: street+number or number+street per country,
+   plus city, country code. Graceful when fields are missing.
+════════════════════════════════════════════════════════════ */
+function formatAddressMain(r) {
+  const a = r.address || {};
+  const cc = (a.country_code || '').toUpperCase();
+  const street = a.road || a.pedestrian || a.footway || a.path || '';
+  const num    = a.house_number || '';
+  const city   = a.city || a.town || a.village || a.hamlet || a.municipality || '';
+  const postal = a.postcode || '';
+  const country = cc || '';
+
+  // Build the street+number part
+  let streetPart = '';
+  if (street && num) {
+    streetPart = isNumberFirst(cc) ? `${num} ${street}` : `${street} ${num}`;
+  } else if (street) {
+    streetPart = street;
+  } else if (num) {
+    streetPart = num;
+  }
+
+  // If this is just a city/region/country result (no street), use the type label
+  const osmType = r.type || r.class || '';
+  const isBroadResult = !street && !num;
+
+  const parts = [];
+  if (streetPart)      parts.push(streetPart);
+  if (postal && num)   parts.push(postal);   // postal useful next to house nr
+  if (city)            parts.push(city);
+  if (country)         parts.push(country);
+
+  if (parts.length === 0) {
+    // Fallback: use first two comma-parts of display_name
+    return r.display_name.split(',').slice(0, 2).join(',').trim();
+  }
+  return parts.join(', ');
+}
+
+/* Secondary line: broader context — state/region/country name */
+function formatAddressSub(r) {
+  const a = r.address || {};
+  const parts = [];
+  const state   = a.state || a.region || a.province || '';
+  const country = a.country || '';
+  const type    = r.type || r.class || '';
+
+  if (state)   parts.push(state);
+  if (country) parts.push(country);
+
+  // Append type hint for non-address results
+  const broadTypes = ['city','town','village','hamlet','suburb','county','state',
+                      'country','administrative','natural','aeroway','railway','tourism'];
+  if (broadTypes.includes(type)) {
+    const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+    return `${typeLabel}${parts.length ? '  ·  ' + parts.join(', ') : ''}`;
+  }
+  return parts.join(', ');
+}
+
+/* ════════════════════════════════════════════════════════════
+   SEARCH / AUTOCOMPLETE  (Nominatim OSM)
+════════════════════════════════════════════════════════════ */
+let lastQuery = '';
+function handleSearchInput(val) {
+  clearTimeout(searchDebounce);
+  if (val.length < 2) { closeDropdown(); return; }
+  searchDebounce = setTimeout(() => fetchSuggestions(val), 320);
+}
+
+async function fetchSuggestions(query) {
+  if (query === lastQuery) return;
+  lastQuery = query;
+  const dd = document.getElementById('autocomplete-dropdown');
+  dd.innerHTML = '<div class="autocomplete-loading"><span class="spin dark"></span> Searching…</div>';
+  dd.classList.add('open');
+  try {
+    const results = await nominatimSearch(query, 8);
+    renderSuggestions(results, query);
+  } catch(e) {
+    dd.innerHTML = '<div class="autocomplete-loading" style="color:var(--planon-error)">⚠ Search unavailable — check connection</div>';
+  }
+}
+
+/* Build Nominatim URL — country-biased when we have IP location,
+   with a deduplicated fallback for zero local results */
+async function nominatimSearch(query, limit) {
+  const base = 'https://nominatim.openstreetmap.org/search';
+  const params = new URLSearchParams({
+    q: query,
+    format: 'json',
+    addressdetails: '1',
+    namedetails: '1',
+    limit: String(limit),
+    'accept-language': 'en'
+  });
+
+  // Bias toward user's country first
+  if (userCountryCode) params.set('countrycodes', userCountryCode.toLowerCase());
+
+  const biasedRes  = await fetch(`${base}?${params}`, { headers: {'Accept-Language':'en'} });
+  const biasedData = await biasedRes.json();
+
+  // If we got enough local hits, return them
+  if (biasedData.length >= 3 || !userCountryCode) return biasedData;
+
+  // Fuzzy fallback: also search globally (combine, deduplicate by osm_id)
+  params.delete('countrycodes');
+  const globalRes  = await fetch(`${base}?${params}`, { headers: {'Accept-Language':'en'} });
+  const globalData = await globalRes.json();
+
+  const seen = new Set(biasedData.map(r => r.osm_id));
+  const extras = globalData.filter(r => !seen.has(r.osm_id));
+  return [...biasedData, ...extras].slice(0, limit);
+}
+
+function renderSuggestions(results, query) {
+  const dd = document.getElementById('autocomplete-dropdown');
+  if (!results.length) {
+    // Last-resort: suggest spelling correction hint
+    dd.innerHTML = `<div class="autocomplete-loading">
+      No results — try different spelling or broader search
+    </div>`;
+    return;
+  }
+
+  // Group: local (matching user country) vs global
+  const local  = userCountryCode
+    ? results.filter(r => (r.address?.country_code||'').toUpperCase() === userCountryCode)
+    : results;
+  const global = userCountryCode
+    ? results.filter(r => (r.address?.country_code||'').toUpperCase() !== userCountryCode)
+    : [];
+
+  let html = '';
+
+  if (local.length && global.length) {
+    html += `<div style="padding:5px 12px 3px;font-size:10.5px;font-weight:700;color:var(--planon-blue);
+      text-transform:uppercase;letter-spacing:.4px;background:var(--planon-blue-pale)">
+      📍 ${escHtml(userCountryName || userCountryCode)}</div>`;
+  }
+
+  const renderItem = (r, i) => {
+    const main = formatAddressMain(r);
+    const sub  = formatAddressSub(r);
+    const icon = getTypeIcon(r.type || r.class);
+    return `<div class="autocomplete-item" onclick="selectResult(${i})" data-idx="${i}" id="ac-item-${i}">
+      <span class="autocomplete-item-icon">${icon}</span>
+      <div style="min-width:0">
+        <div class="autocomplete-item-main">${escHtml(main)}</div>
+        ${sub ? `<div class="autocomplete-item-sub">${escHtml(sub)}</div>` : ''}
+      </div>
+    </div>`;
+  };
+
+  html += local.map((r, i) => renderItem(r, i)).join('');
+
+  if (global.length) {
+    html += `<div style="padding:5px 12px 3px;font-size:10.5px;font-weight:700;color:var(--planon-gray-500);
+      text-transform:uppercase;letter-spacing:.4px;background:var(--planon-gray-100);border-top:1px solid var(--planon-gray-100)">
+      🌍 Worldwide</div>`;
+    html += global.map((r, i) => renderItem(r, local.length + i)).join('');
+  }
+
+  if (!local.length) {
+    html = results.map((r, i) => renderItem(r, i)).join('');
+  }
+
+  dd.innerHTML = html;
+  dd._results = results;
+  dd._highlighted = -1;
+}
+
+function getTypeIcon(type) {
+  const m = { building:'🏢', house:'🏠', city:'🏙', town:'🌆', village:'🏘', road:'🛣',
+    highway:'🛣', amenity:'📍', tourism:'🗺', natural:'🌿', aeroway:'✈', railway:'🚉',
+    suburb:'🏘', postcode:'📮', country:'🌐', administrative:'🗂', hotel:'🏨',
+    restaurant:'🍽', hospital:'🏥', school:'🏫', park:'🌳', shop:'🛍' };
+  return m[type] || '📍';
+}
+
+function handleSearchKey(e) {
+  const dd = document.getElementById('autocomplete-dropdown');
+  if (!dd.classList.contains('open') || !dd._results) return;
+  const n = dd._results.length;
+  if (e.key === 'ArrowDown') { e.preventDefault(); highlightItem(Math.min((dd._highlighted >= 0 ? dd._highlighted : -1)+1, n-1)); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); highlightItem(Math.max((dd._highlighted||0)-1, 0)); }
+  else if (e.key === 'Enter') { e.preventDefault(); if (dd._highlighted >= 0) selectResult(dd._highlighted); else doSearch(); }
+  else if (e.key === 'Escape') closeDropdown();
+}
+
+function highlightItem(idx) {
+  const dd = document.getElementById('autocomplete-dropdown');
+  document.querySelectorAll('.autocomplete-item').forEach(el => el.classList.remove('highlighted'));
+  const el = document.getElementById('ac-item-'+idx);
+  if (el) { el.classList.add('highlighted'); el.scrollIntoView({ block: 'nearest' }); }
+  dd._highlighted = idx;
+}
+
+function selectResult(idx) {
+  const dd = document.getElementById('autocomplete-dropdown');
+  const r = dd._results[idx];
+  if (!r) return;
+  closeDropdown();
+  populateFromResult(r);
+}
+
+async function doSearch() {
+  const q = document.getElementById('address-search').value.trim();
+  if (!q) return;
+  const btn = document.getElementById('search-btn');
+  document.getElementById('search-btn-text').innerHTML = '<span class="spin"></span>';
+  btn.disabled = true;
+  try {
+    const data = await nominatimSearch(q, 1);
+    if (data.length) { populateFromResult(data[0]); }
+    else { toast('No results found — try a different spelling or broader query', 'warning'); }
+  } catch(e) {
+    toast('⚠ Search failed — please check your internet connection', 'error');
+  }
+  document.getElementById('search-btn-text').textContent = 'Search';
+  btn.disabled = false;
+}
+
+function closeDropdown() {
+  document.getElementById('autocomplete-dropdown').classList.remove('open');
+}
+
+document.addEventListener('click', e => {
+  if (!document.getElementById('search-wrapper').contains(e.target)) closeDropdown();
+});
+
+/* ════════════════════════════════════════════════════════════
+   POPULATE FIELDS FROM NOMINATIM RESULT
+════════════════════════════════════════════════════════════ */
+function populateFromResult(r) {
+  const a = r.address || {};
+  const lat = parseFloat(r.lat);
+  const lng = parseFloat(r.lon);
+
+  // Street
+  setFieldValidated('f-street-name', a.road || a.pedestrian || a.footway || '');
+  setFieldValidated('f-street-nr', a.house_number || '');
+  setFieldValidated('f-line1', buildLine1(a));
+  setFieldValidated('f-postal', a.postcode || '');
+  setFieldValidated('f-city', a.city || a.town || a.village || a.hamlet || a.municipality || '');
+  setFieldValidated('f-sublocality', a.suburb || a.neighbourhood || a.quarter || '');
+  setFieldValidated('f-municipality', a.municipality || a.city || a.town || '');
+  setFieldValidated('f-adm1', a.state || a.region || a.province || '');
+  setFieldValidated('f-adm2', a.county || a.state_district || a.district || '');
+  setFieldValidated('f-adm3', a.quarter || '');
+  setFieldValidated('f-country', a.country || '');
+  setFieldValidated('f-country-code', (a.country_code || '').toUpperCase());
+
+  // Continent
+  setContinent(a.country_code);
+
+  // Update admin labels based on country
+  updateAdminLabels(a.country_code?.toUpperCase());
+
+  // Sovereignty status
+  // Heuristic based on country_code
+  const disputed = ['tw', 'ps', 'xk', 'so', 'ss'];
+  const sar = ['hk', 'mo'];
+  const territory = ['gi', 'fk', 'vi', 'gu', 'as', 'pr'];
+  const cc = (a.country_code || '').toLowerCase();
+  if (sar.includes(cc)) setField('f-sovereignty', 'sar');
+  else if (disputed.includes(cc)) setField('f-sovereignty', 'disputed');
+  else if (territory.includes(cc)) setField('f-sovereignty', 'territory');
+  else setField('f-sovereignty', 'independent');
+
+  // Coords
+  validatedLat = lat; validatedLng = lng;
+  placeMarkerAt(lat, lng, 'geocoded');
+  setCurrentCoords(lat, lng, 'geocoded', true);
+  setCoordBadge('geocoded');
+
+  // Plus Code (simple approximation)
+  setField('f-pluscode', approxPlusCode(lat, lng));
+  setField('f-coord-accuracy', 'geocoded');
+
+  // Update UI state
+  addressValidated = true;
+  document.getElementById('validation-status').classList.add('visible');
+  document.getElementById('coord-source-label').textContent = '✅ Source: OpenStreetMap Nominatim';
+  updateAddressLockInfo();
+
+  // Update search box with display name
+  document.getElementById('address-search').value = r.display_name;
+
+  toast('✅ Address validated and fields populated', 'success');
+}
+
+function buildLine1(a) {
+  const parts = [];
+  if (a.road || a.pedestrian) parts.push(a.road || a.pedestrian);
+  if (a.house_number) parts.push(a.house_number);
+  return parts.join(' ') || '';
+}
+
+function setField(id, val) {
+  const el = document.getElementById(id);
+  if (el && val !== undefined) el.value = val;
+}
+
+function setFieldValidated(id, val) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = val;
+  el.classList.remove('manual-override');
+  if (val) el.classList.add('validated'); else el.classList.remove('validated');
+}
+
+function setCurrentCoords(lat, lng, accuracy, fromAddress) {
+  currentLat = lat; currentLng = lng;
+  document.getElementById('f-lat').value = lat.toFixed(6);
+  document.getElementById('f-lng').value = lng.toFixed(6);
+  if (!fromAddress) {
+    document.getElementById('f-lat').classList.add('manual-override');
+    document.getElementById('f-lng').classList.add('manual-override');
+  } else {
+    document.getElementById('f-lat').classList.add('validated');
+    document.getElementById('f-lng').classList.add('validated');
+    document.getElementById('f-lat').classList.remove('manual-override');
+    document.getElementById('f-lng').classList.remove('manual-override');
+  }
+}
+
+function updateAddressLockInfo() {
+  const el = document.getElementById('address-lock-info');
+  if (addressValidated) {
+    const pinMoved = (validatedLat && currentLat && (Math.abs(currentLat - validatedLat) > 0.0001 || Math.abs(currentLng - validatedLng) > 0.0001));
+    if (pinMoved) {
+      el.innerHTML = '<span style="color:var(--planon-warn)">⚠</span> Pin moved from validated address location';
+    } else {
+      el.innerHTML = '<span style="color:var(--planon-success)">✅</span> Pin matches validated address';
+    }
+  } else {
+    el.innerHTML = '<span style="color:var(--planon-gray-300)">⬡</span> Address not validated';
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   MANUAL COORDINATES
+════════════════════════════════════════════════════════════ */
+function onManualCoordChange() {
+  document.getElementById('f-lat').classList.add('manual-override');
+  document.getElementById('f-lng').classList.add('manual-override');
+}
+
+function applyManualCoords() {
+  const lat = parseFloat(document.getElementById('f-lat').value);
+  const lng = parseFloat(document.getElementById('f-lng').value);
+  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    toast('⚠ Invalid coordinates. Latitude: -90 to 90, Longitude: -180 to 180', 'error');
+    return;
+  }
+  currentLat = lat; currentLng = lng;
+  placeMarkerAt(lat, lng, 'manual_pin');
+  setCoordBadge('manual');
+  document.getElementById('f-coord-accuracy').value = 'manual_pin';
+  updateAddressLockInfo();
+  document.getElementById('coord-source-label').textContent = '📌 Manual entry';
+  toast('📌 Map pin updated to manual coordinates. Address fields unchanged.', 'warning');
+}
+
+function resetCoordinatesToAddress() {
+  if (!validatedLat) { toast('No validated address to reset to', 'warning'); return; }
+  currentLat = validatedLat; currentLng = validatedLng;
+  placeMarkerAt(validatedLat, validatedLng, 'geocoded');
+  setCurrentCoords(validatedLat, validatedLng, 'geocoded', true);
+  setCoordBadge('geocoded');
+  updateAddressLockInfo();
+  toast('↩ Coordinates reset to geocoded address location', 'info');
+}
+
+/* ════════════════════════════════════════════════════════════
+   REVERSE GEOCODING
+════════════════════════════════════════════════════════════ */
+async function doReverseGeocode() {
+  const lat = parseFloat(document.getElementById('f-lat').value);
+  const lng = parseFloat(document.getElementById('f-lng').value);
+  if (isNaN(lat) || isNaN(lng)) {
+    toast('⚠ Enter or place coordinates first before reverse geocoding', 'warning');
+    return;
+  }
+  toast('🔄 Reverse geocoding…', 'info');
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1&accept-language=en`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.error) { toast('No address found at these coordinates', 'warning'); return; }
+    pendingReverseResult = data;
+    showReversePreview(data, lat, lng);
+  } catch(e) {
+    toast('⚠ Reverse geocoding failed — check connection', 'error');
+  }
+}
+
+function showReversePreview(data, lat, lng) {
+  const a = data.address || {};
+  const card = document.getElementById('reverse-preview-card');
+  const content = document.getElementById('reverse-preview-content');
+
+  const line1 = buildLine1(a);
+  const city = a.city || a.town || a.village || '';
+  const country = a.country || '';
+
+  content.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span style="font-size:20px">📍</span>
+      <strong style="color:var(--planon-navy)">${escHtml(data.display_name.split(',').slice(0,3).join(','))}</strong>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      ${row('Street', line1)}
+      ${row('Postal Code', a.postcode)}
+      ${row('City', city)}
+      ${row('State / Province', a.state || a.region)}
+      ${row('Country', country)}
+      ${row('Coordinates', `${lat.toFixed(6)}, ${lng.toFixed(6)}`)}
+    </table>
+    <p style="margin-top:10px;font-size:11.5px;color:var(--planon-warn);font-weight:500">
+      ⚠ Applying will overwrite address fields. Coordinates will remain as currently set.
+    </p>
+  `;
+  card.style.display = 'block';
+}
+
+function row(label, val) {
+  if (!val) return '';
+  return `<tr><td style="padding:3px 6px 3px 0;color:var(--planon-gray-500);white-space:nowrap">${escHtml(label)}</td><td style="padding:3px 0;color:var(--planon-gray-900);font-weight:500">${escHtml(val)}</td></tr>`;
+}
+
+function applyReverseResult() {
+  if (!pendingReverseResult) return;
+  populateFromResult(pendingReverseResult);
+  // But keep current coords (pin was moved intentionally)
+  const lat = parseFloat(document.getElementById('f-lat').value);
+  const lng = parseFloat(document.getElementById('f-lng').value);
+  // coords already updated by populateFromResult; restore pin position
+  placeMarkerAt(currentLat || lat, currentLng || lng, 'manual_pin');
+  document.getElementById('f-coord-accuracy').value = 'manual_pin';
+  dismissReversePreview();
+  toast('✅ Address fields updated from reverse geocode. Pin position preserved.', 'success');
+}
+
+function dismissReversePreview() {
+  document.getElementById('reverse-preview-card').style.display = 'none';
+  pendingReverseResult = null;
+}
+
+/* ════════════════════════════════════════════════════════════
+   ADMIN LABELS
+════════════════════════════════════════════════════════════ */
+function updateAdminLabels(cc) {
+  const labels = adminLabels[cc] || adminLabels['default'];
+  document.getElementById('lbl-adm1-eg').textContent = labels[0];
+  document.getElementById('f-adm1').placeholder = labels[0] + ' — e.g. ' + labels[1];
+  document.getElementById('lbl-adm2-eg').textContent = labels[2];
+  document.getElementById('f-adm2').placeholder = labels[2] + ' — e.g. ' + labels[3];
+  document.getElementById('lbl-adm3-eg').textContent = labels[4];
+  document.getElementById('f-adm3').placeholder = labels[4] + ' — e.g. ' + labels[5];
+}
+
+/* ════════════════════════════════════════════════════════════
+   CONTINENT AUTO-SET
+════════════════════════════════════════════════════════════ */
+const continentMap = {
+  EU: ['ad','al','at','ba','be','bg','by','ch','cy','cz','de','dk','ee','es','fi','fo','fr','gb','ge','gi','gr','hr','hu','ie','is','it','li','lt','lu','lv','mc','md','me','mk','mt','nl','no','pl','pt','ro','rs','ru','se','si','sk','sm','tr','ua','va','xk'],
+  AS: ['ae','af','am','az','bd','bh','bn','bt','cn','hk','id','il','in','iq','ir','jo','jp','kg','kh','kp','kr','kw','kz','la','lb','lk','mm','mn','mo','mv','my','np','om','ph','pk','ps','qa','sa','sg','sy','tj','tl','tm','tw','uz','vn','ye'],
+  NA: ['ag','an','aw','bb','bm','bs','bz','ca','cr','cu','dm','do','gd','gt','hn','ht','jm','kn','ky','lc','mx','ni','pa','pr','sv','tc','tt','us','vc','vi'],
+  SA: ['ar','bo','br','cl','co','ec','fk','gy','pe','py','sr','uy','ve'],
+  AF: ['ao','bf','bi','bj','bw','cd','cf','cg','ci','cm','cv','dj','dz','eg','er','et','ga','gh','gm','gn','gq','gw','ke','km','lr','ls','ly','ma','mg','ml','mr','mu','mw','mz','na','ne','ng','rw','sc','sd','sl','sn','so','ss','st','sz','td','tg','tn','tz','ug','za','zm','zw'],
+  OC: ['au','fj','fm','gu','ki','mh','mp','nc','nf','nr','nz','pf','pg','pw','sb','tk','tl','to','tv','vu','ws'],
+  AN: ['aq']
+};
+
+function setContinent(cc) {
+  if (!cc) return;
+  const c = cc.toLowerCase();
+  for (const [cont, codes] of Object.entries(continentMap)) {
+    if (codes.includes(c)) { setField('f-continent', cont); return; }
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   PLUS CODE (simplified approximation for demo)
+════════════════════════════════════════════════════════════ */
+function approxPlusCode(lat, lng) {
+  // Very simplified OLC-like code for demo purposes
+  const CHARS = '23456789CFGHJMPQRVWX';
+  function enc(val, range, steps) {
+    val = (val + range) / (range * 2);
+    let code = '';
+    for (let i = 0; i < steps; i++) {
+      val *= 20;
+      code += CHARS[Math.floor(val) % 20];
+      val -= Math.floor(val);
+    }
+    return code;
+  }
+  return enc(lat, 90, 4) + enc(lng, 180, 4) + '+' + enc(lat * 400 % 20, 10, 2);
+}
+
+/* ════════════════════════════════════════════════════════════
+   TOAST
+════════════════════════════════════════════════════════════ */
+function toast(msg, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  container.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 350); }, 3200);
+}
+
+/* ════════════════════════════════════════════════════════════
+   TAB SWITCHING
+════════════════════════════════════════════════════════════ */
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+/* ════════════════════════════════════════════════════════════
+   CLEAR / SAVE
+════════════════════════════════════════════════════════════ */
+function clearAll() {
+  ['f-street-name','f-street-nr','f-street-suffix','f-floor','f-line1','f-line2',
+   'f-postal','f-postal-suffix','f-city','f-sublocality','f-municipality',
+   'f-adm1','f-adm2','f-adm3','f-country','f-country-code','f-lat','f-lng',
+   'f-alt','f-pluscode'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; el.classList.remove('validated','manual-override'); }
+  });
+  ['f-sovereignty','f-display-context','f-continent','f-coord-accuracy'].forEach(id => setField(id,''));
+  document.getElementById('address-search').value = '';
+  marker.setOpacity(0);
+  map.setView([20, 0], 2);
+  currentLat = null; currentLng = null; validatedLat = null; validatedLng = null;
+  addressValidated = false;
+  document.getElementById('validation-status').classList.remove('visible');
+  setCoordBadge('none');
+  document.getElementById('pin-lat-display').textContent = '—';
+  document.getElementById('pin-lng-display').textContent = '—';
+  document.getElementById('address-lock-info').innerHTML = '<span style="color:var(--planon-gray-300)">⬡</span> Address not validated';
+  document.getElementById('coord-source-label').textContent = '';
+  dismissReversePreview();
+  updateAdminLabels('');
+  toast('Form cleared', 'info');
+}
+
+function saveRecord() {
+  const city = document.getElementById('f-city').value;
+  const country = document.getElementById('f-country').value;
+  if (!city || !country) { toast('⚠ City and Country are required', 'error'); return; }
+  toast('💾 Record saved successfully', 'success');
+}
+
+/* ════════════════════════════════════════════════════════════
+   UTILS
+════════════════════════════════════════════════════════════ */
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ════════════════════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════════════════════ */
+window.addEventListener('load', () => {
+  initMap();
+  updateAdminLabels('NL'); // default
+  detectUserCountry();     // async, silently biases search results once resolved
+});
+</script>
+</body>
+</html>
