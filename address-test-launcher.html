@@ -1,78 +1,98 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Address Test Launcher</title>
-
-    <style>
-        body {
-            font-family: Segoe UI, Arial, sans-serif;
-            margin: 40px;
-            background: #f5f7fa;
-        }
-
-        h1 {
-            margin-bottom: 10px;
-        }
-
-        p {
-            color: #666;
-            margin-bottom: 30px;
-        }
-
-        .links {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            max-width: 500px;
-        }
-
-        a {
-            display: block;
-            padding: 12px 16px;
-            background: white;
-            border: 1px solid #d0d7de;
-            border-radius: 6px;
-            text-decoration: none;
-            color: #0366d6;
-            font-weight: 600;
-        }
-
-        a:hover {
-            background: #eef6ff;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Address Test Pages</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --text: #1c1e21;
+    --muted: #6b7280;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --border: #e5e7eb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 40px 20px;
+  }
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 1.6rem;
+    margin-bottom: 4px;
+  }
+  p.subtitle {
+    color: var(--muted);
+    margin-top: 0;
+    margin-bottom: 28px;
+  }
+  ul.links {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 12px;
+  }
+  li.card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  li.card a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    text-decoration: none;
+    color: var(--text);
+    font-weight: 500;
+    font-size: 1rem;
+  }
+  li.card a:hover {
+    color: var(--accent);
+  }
+  li.card a .arrow {
+    color: var(--muted);
+    font-size: 1.1rem;
+    transition: transform 0.15s ease;
+  }
+  li.card a:hover .arrow {
+    transform: translateX(3px);
+    color: var(--accent-hover);
+  }
+  footer {
+    margin-top: 32px;
+    font-size: 0.85rem;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
 </head>
 <body>
+  <div class="wrap">
+    <h1>Address Test Pages</h1>
+    <p class="subtitle">Click any link below to open the corresponding test page in a new tab.</p>
 
-    <h1>Address Test Launcher</h1>
-    <p>Click a test page to open it in a new browser tab.</p>
+    <ul class="links">
+      <li class="card"><a href="address-via-chatgpt.html" target="_blank" rel="noopener">ChatGPT <span class="arrow">↗</span></a></li>
+      <li class="card"><a href="address-via-claude.html" target="_blank" rel="noopener">Claude <span class="arrow">↗</span></a></li>
+      <li class="card"><a href="address-via-claude-v2.html" target="_blank" rel="noopener">Claude v2 <span class="arrow">↗</span></a></li>
+      <li class="card"><a href="address-via-copilot.html" target="_blank" rel="noopener">Copilot <span class="arrow">↗</span></a></li>
+      <li class="card"><a href="address-via-copilot-v2.html" target="_blank" rel="noopener">Copilot v2 <span class="arrow">↗</span></a></li>
+      <li class="card"><a href="address-via-gemini.html" target="_blank" rel="noopener">Gemini <span class="arrow">↗</span></a></li>
+    </ul>
 
-    <div class="links">
-        address-via-chatgpt.html
-            Address via ChatGPT
-        </a>
-
-        address-via-claude.html
-            Address via Claude
-        </a>
-
-        address-via-claude-v2.html
-            Address via Claude v2
-        </a>
-
-        address-via-copilot.html
-            Address via Copilot
-        </a>
-
-        address-via-copilot-v2.html
-            Address via Copilot v2
-        </a>
-
-        <a href="ia-gemini.html
-            Address via Gemini
-        </a>
-    </div>
-
+    <footer>Place this file in the same folder as the address-via-*.html pages.</footer>
+  </div>
 </body>
 </html>
