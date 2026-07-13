@@ -12,7 +12,7 @@ header{background:#0f4c81;color:white;padding:14px 20px;font-size:20px;font-weig
 .panel{padding:20px;background:white;border-right:1px solid #dcdcdc;overflow:auto}
 .field{margin-bottom:10px}
 label{display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#444}
-input,select{width:100%;padding:7px;border:1px solid #cfd6e0;border-radius:4px}
+input{width:100%;padding:7px;border:1px solid #cfd6e0;border-radius:4px}
 input:focus{outline:none;border-color:#0f4c81}
 #map{height:100%}
 button{background:#0f4c81;color:white;border:none;padding:8px 10px;border-radius:4px;margin-right:6px;margin-top:4px;cursor:pointer}
@@ -97,14 +97,13 @@ button.orange{background:#d9822b}
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-
 (function(){
 
 let addressLocked=false
-let map
-let marker
+let map=null
+let marker=null
 
-/* --------------------------- MAP INIT --------------------------- */
+/* ---------------- MAP INIT ---------------- */
 
 function initMap(){
 
@@ -123,18 +122,18 @@ attribution:'© OpenStreetMap'
 
 marker=L.marker([52.1,5.1],{draggable:true}).addTo(map)
 
-marker.on('dragend',()=>{
+marker.on('dragend',function(){
 const p=marker.getLatLng()
 setLatLon(p.lat,p.lng)
 })
 
-map.on('click',e=>{
+map.on('click',function(e){
 setMarker(e.latlng.lat,e.latlng.lng)
 })
 
 }
 
-/* --------------------------- HELPERS --------------------------- */
+/* ---------------- HELPERS ---------------- */
 
 function setField(id,val){
 const el=document.getElementById(id)
@@ -158,13 +157,13 @@ if(map) map.setView([lat,lon],16)
 setLatLon(lat,lon)
 }
 
-/* --------------------------- SEARCH --------------------------- */
+/* ---------------- SEARCH ---------------- */
 
 const search=document.getElementById('search')
 const suggestions=document.getElementById('suggestions')
 const errorBox=document.getElementById('error')
 
-search.addEventListener('input',async()=>{
+search.addEventListener('input',async function(){
 
 const q=search.value.trim()
 
@@ -193,14 +192,18 @@ console.warn(err)
 
 errorBox.textContent='Address lookup failed. Using demo data.'
 
-renderSuggestions([{properties:{
+renderSuggestions([{
+properties:{
 name:'Dam',
 city:'Amsterdam',
 state:'North Holland',
 country:'Netherlands',
 countrycode:'NL',
-postcode:'1012'
-},geometry:{coordinates:[4.899431,52.379189]}}])
+postcode:'1012',
+housenumber:'1'
+},
+geometry:{coordinates:[4.899431,52.379189]}
+}])
 
 }
 
@@ -210,11 +213,10 @@ function renderSuggestions(list){
 
 suggestions.innerHTML=''
 
-list.forEach(place=>{
+list.forEach(function(place){
 
-const props=place.properties||place
+const props=place.properties||{}
 
-/* Build a clear human readable label */
 const street=props.street||props.name||''
 const house=props.housenumber||''
 const city=props.city||props.town||props.village||''
@@ -232,11 +234,9 @@ if(!label) label='Address result'
 const div=document.createElement('div')
 
 div.className='suggestion'
-
 div.textContent=label
 
-/* store full place object */
-div.onclick=()=>selectAddress(place)
+div.onclick=function(){selectAddress(place)}
 
 suggestions.appendChild(div)
 
@@ -244,29 +244,25 @@ suggestions.appendChild(div)
 
 }
 
-/* --------------------------- ADDRESS SELECT --------------------------- */
+/* ---------------- ADDRESS SELECT ---------------- */
 
 function selectAddress(place){
 
 suggestions.innerHTML=''
 
-const props=place.properties||place
+const props=place.properties||{}
 
-/* Coordinates */
 if(place.geometry && place.geometry.coordinates){
-const [lon,lat]=place.geometry.coordinates
+const lon=place.geometry.coordinates[0]
+const lat=place.geometry.coordinates[1]
 setMarker(lat,lon)
 }
-
-/* Address components */
 
 setField('street',props.street||props.name)
 setField('housenumber',props.housenumber||props.house_number)
 setField('postcode',props.postcode)
-
 setField('city',props.city||props.town||props.village)
 
-/* Administrative hierarchy */
 setField('district',props.district||props.suburb)
 setField('municipality',props.city)
 setField('province',props.county)
@@ -277,19 +273,7 @@ setField('countrycode',(props.countrycode||props.country_code||'').toUpperCase()
 
 }
 
-setField('street',props.street||props.name)
-setField('postcode',props.postcode)
-setField('city',props.city)
-setField('district',props.district)
-setField('municipality',props.city)
-setField('province',props.county)
-setField('state',props.state)
-setField('country',props.country)
-setField('countrycode',(props.countrycode||'').toUpperCase())
-
-}
-
-/* --------------------------- REVERSE GEOCODE --------------------------- */
+/* ---------------- REVERSE GEOCODE ---------------- */
 
 window.reverseFromCoords=async function(){
 
@@ -308,7 +292,7 @@ if(!res.ok) throw new Error('Reverse lookup failed')
 
 const data=await res.json()
 
-if(data.features.length){
+if(data.features && data.features.length>0){
 selectAddress(data.features[0])
 }
 
@@ -321,12 +305,12 @@ errorBox.textContent='Reverse lookup failed.'
 
 }
 
-/* --------------------------- VALIDATION --------------------------- */
+/* ---------------- VALIDATION ---------------- */
 
 window.validateAddress=function(){
 addressLocked=true
 
-document.querySelectorAll('.panel input').forEach(el=>{
+document.querySelectorAll('.panel input').forEach(function(el){
 el.classList.add('locked')
 })
 }
@@ -334,27 +318,25 @@ el.classList.add('locked')
 window.unlockAddress=function(){
 addressLocked=false
 
-document.querySelectorAll('.panel input').forEach(el=>{
+document.querySelectorAll('.panel input').forEach(function(el){
 el.classList.remove('locked')
 })
 }
 
-/* --------------------------- UTILS --------------------------- */
+/* ---------------- UTILS ---------------- */
 
 window.clearAddress=function(){
 
 if(addressLocked) return
 
-
-document.querySelectorAll('input').forEach(i=>i.value='')
+document.querySelectorAll('input').forEach(function(i){i.value=''})
 
 suggestions.innerHTML=''
-
 errorBox.textContent=''
 
 }
 
-/* --------------------------- TESTS --------------------------- */
+/* ---------------- TESTS ---------------- */
 
 function runTests(){
 
@@ -366,20 +348,27 @@ console.assert(document.getElementById('lat').value!=='','Lat set')
 console.assert(document.getElementById('lon').value!=='','Lon set')
 
 setField('city','TestCity')
-
 console.assert(document.getElementById('city').value==='TestCity','setField works')
 
 validateAddress()
-
 setField('city','ShouldNotChange')
-
 console.assert(document.getElementById('city').value==='TestCity','lock works')
 
 unlockAddress()
-
 setField('city','Changed')
-
 console.assert(document.getElementById('city').value==='Changed','unlock works')
+
+/* new test: selectAddress fills house number */
+selectAddress({
+properties:{
+name:'TestStreet',
+housenumber:'99',
+city:'TestCity'
+},
+geometry:{coordinates:[5,52]}
+})
+
+console.assert(document.getElementById('housenumber').value==='99','house number populated')
 
 console.log('Tests finished')
 
@@ -387,12 +376,11 @@ console.log('Tests finished')
 
 window.runTests=runTests
 
-/* --------------------------- START --------------------------- */
+/* ---------------- START ---------------- */
 
 initMap()
 
 })();
-
 </script>
 </body>
 </html>
